@@ -1,0 +1,307 @@
+/*
+ * Sha Silvers — design tokens.
+ *
+ * Colour strategy is Committed: neutrals carry the catalogue, colour carries
+ * meaning and structure. Accents are the anneal palette — the temper colours
+ * that appear on silver as it is heated in the workshop (straw, steel, plum,
+ * patina) — chosen over the gold-and-maroon the category expects.
+ *
+ * Every colour is OKLCH so lightness steps look even, and every neutral is
+ * tinted warm rather than pure grey. No #000, no #fff anywhere.
+ *
+ * Tokens are semantic. Components read roles (--c-surface, --c-accent), never
+ * raw palette values, which is what lets one file drive both themes.
+ */
+
+:root {
+  color-scheme: light;
+
+  /* --- Surfaces --------------------------------------------------------- */
+  --c-bg: oklch(96.4% 0.008 85); /* page */
+  --c-surface: oklch(99.1% 0.004 85); /* cards, inputs */
+  --c-sunken: oklch(94.1% 0.013 85); /* image wells, read-only fields */
+
+  /* Chrome: the dark bands — rate bar, footer. */
+  --c-chrome: oklch(19% 0.008 80);
+  --c-chrome-fg: oklch(97% 0.006 85);
+  --c-chrome-muted: oklch(72% 0.01 80);
+
+  /* Inverse: a surface that contrasts with the page. Selected chips,
+     quick-add, checked boxes. Flips completely between themes. */
+  --c-inverse: oklch(19% 0.008 80);
+  --c-inverse-fg: oklch(97% 0.006 85);
+
+  /* --- Line ------------------------------------------------------------- */
+  --c-line: oklch(89.4% 0.013 85);
+  --c-line-strong: oklch(19% 0.008 80);
+  --c-line-inverse: oklch(32% 0.008 80); /* hairline on chrome */
+
+  /* --- Text ------------------------------------------------------------- */
+  --c-fg: oklch(19% 0.008 80); /* primary */
+  --c-fg-muted: oklch(51% 0.008 80); /* secondary */
+  --c-fg-subtle: oklch(75% 0.009 80); /* placeholder, disabled */
+
+  /* --- Anneal accents --------------------------------------------------- */
+  /* Action — the primary button, one per screen. */
+  --c-action: oklch(33% 0.038 158);
+  --c-action-hover: oklch(25% 0.03 158);
+  --c-action-fg: oklch(98% 0.005 85);
+
+  /* Accent — links, focus, selection. Kept distinct from action so the
+     primary button stays the only moss on the page. */
+  --c-accent: oklch(44% 0.062 232);
+  --c-accent-hover: oklch(34% 0.055 232);
+  --c-accent-fg: oklch(98% 0.005 85);
+  --c-accent-wash: oklch(44% 0.062 232 / 0.07);
+
+  /* Editorial — the maker band. Colour as architecture. */
+  --c-editorial: oklch(28% 0.055 340);
+  --c-editorial-raised: oklch(34% 0.058 340);
+  --c-editorial-fg: oklch(94% 0.012 340);
+  --c-editorial-muted: oklch(74% 0.03 340);
+
+  /* Highlight — money and time. Savings, delivery dates, the live rate.
+     The only warm note in the system. */
+  --c-highlight: oklch(52% 0.098 72); /* text-safe on light surfaces */
+  --c-highlight-bright: oklch(72% 0.11 75); /* on chrome and in dark */
+  --c-highlight-wash: oklch(72% 0.11 75 / 0.14);
+
+  /* Positive — in stock, confirmed, free shipping earned. */
+  --c-positive: oklch(45% 0.055 168);
+  --c-positive-wash: oklch(45% 0.055 168 / 0.1);
+
+  /* Danger — validation only. */
+  --c-danger: oklch(45% 0.098 30);
+
+  /* Scrim behind the bag drawer. */
+  --c-scrim: oklch(19% 0.008 80 / 0.32);
+
+  /* --- Type ------------------------------------------------------------- */
+  --font-display: Fraunces, Georgia, 'Times New Roman', serif;
+  --font-ui: Inter, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-mono: ui-monospace, Menlo, Consolas, monospace;
+
+  /* --- Line ------------------------------------------------------------- */
+  --hairline: 0.5px solid var(--c-line);
+  --line-strong: 1px solid var(--c-line-strong);
+
+  /* --- Rhythm ----------------------------------------------------------- */
+  --pad-page: 32px;
+  --pad-page-mobile: 16px;
+  --gap-grid: 18px;
+  --max-page: 1440px;
+
+  /* Minimum interactive target. */
+  --hit: 44px;
+
+  /* --- Motion ----------------------------------------------------------- */
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --t-fast: 150ms;
+  --t-base: 220ms;
+}
+
+/*
+ * Dark theme.
+ *
+ * Not an inversion. The scene is a buyer comparing thali weights on a phone,
+ * in bed, lights off — so the ground is a warm near-black, because silver on
+ * blue-black reads as a screenshot and on warm charcoal reads as a jeweller's
+ * tray. Chrome sits *below* the page surface here, where it sits above in
+ * light, so the bar still recedes. Accents lighten to hold contrast.
+ *
+ * Declared twice: once for the system preference (unless the user has
+ * explicitly chosen light) and once for an explicit dark choice, so the
+ * toggle wins in both directions.
+ */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    color-scheme: dark;
+
+    --c-bg: oklch(19.5% 0.008 76);
+    --c-surface: oklch(23.5% 0.009 76);
+    --c-sunken: oklch(27.5% 0.011 76);
+
+    --c-chrome: oklch(14.5% 0.007 76);
+    --c-chrome-fg: oklch(95% 0.006 85);
+    --c-chrome-muted: oklch(66% 0.011 80);
+
+    --c-inverse: oklch(94% 0.007 85);
+    --c-inverse-fg: oklch(18% 0.008 80);
+
+    --c-line: oklch(32% 0.009 76);
+    --c-line-strong: oklch(88% 0.008 85);
+    --c-line-inverse: oklch(30% 0.008 76);
+
+    --c-fg: oklch(94% 0.007 85);
+    --c-fg-muted: oklch(72% 0.009 80);
+    --c-fg-subtle: oklch(54% 0.009 80);
+
+    --c-action: oklch(58% 0.075 158);
+    --c-action-hover: oklch(68% 0.08 158);
+    --c-action-fg: oklch(16% 0.01 158);
+
+    --c-accent: oklch(72% 0.072 232);
+    --c-accent-hover: oklch(80% 0.07 232);
+    --c-accent-fg: oklch(16% 0.01 232);
+    --c-accent-wash: oklch(72% 0.072 232 / 0.14);
+
+    --c-editorial: oklch(31% 0.062 340);
+    --c-editorial-raised: oklch(37% 0.065 340);
+    --c-editorial-fg: oklch(93% 0.014 340);
+    --c-editorial-muted: oklch(76% 0.035 340);
+
+    --c-highlight: oklch(76% 0.105 75);
+    --c-highlight-bright: oklch(80% 0.11 75);
+    --c-highlight-wash: oklch(76% 0.105 75 / 0.16);
+
+    --c-positive: oklch(75% 0.07 168);
+    --c-positive-wash: oklch(75% 0.07 168 / 0.14);
+
+    --c-danger: oklch(68% 0.11 30);
+
+    --c-scrim: oklch(10% 0.006 76 / 0.6);
+  }
+}
+
+:root[data-theme='dark'] {
+  color-scheme: dark;
+
+  --c-bg: oklch(19.5% 0.008 76);
+  --c-surface: oklch(23.5% 0.009 76);
+  --c-sunken: oklch(27.5% 0.011 76);
+
+  --c-chrome: oklch(14.5% 0.007 76);
+  --c-chrome-fg: oklch(95% 0.006 85);
+  --c-chrome-muted: oklch(66% 0.011 80);
+
+  --c-inverse: oklch(94% 0.007 85);
+  --c-inverse-fg: oklch(18% 0.008 80);
+
+  --c-line: oklch(32% 0.009 76);
+  --c-line-strong: oklch(88% 0.008 85);
+  --c-line-inverse: oklch(30% 0.008 76);
+
+  --c-fg: oklch(94% 0.007 85);
+  --c-fg-muted: oklch(72% 0.009 80);
+  --c-fg-subtle: oklch(54% 0.009 80);
+
+  --c-action: oklch(58% 0.075 158);
+  --c-action-hover: oklch(68% 0.08 158);
+  --c-action-fg: oklch(16% 0.01 158);
+
+  --c-accent: oklch(72% 0.072 232);
+  --c-accent-hover: oklch(80% 0.07 232);
+  --c-accent-fg: oklch(16% 0.01 232);
+  --c-accent-wash: oklch(72% 0.072 232 / 0.14);
+
+  --c-editorial: oklch(31% 0.062 340);
+  --c-editorial-raised: oklch(37% 0.065 340);
+  --c-editorial-fg: oklch(93% 0.014 340);
+  --c-editorial-muted: oklch(76% 0.035 340);
+
+  --c-highlight: oklch(76% 0.105 75);
+  --c-highlight-bright: oklch(80% 0.11 75);
+  --c-highlight-wash: oklch(76% 0.105 75 / 0.16);
+
+  --c-positive: oklch(75% 0.07 168);
+  --c-positive-wash: oklch(75% 0.07 168 / 0.14);
+
+  --c-danger: oklch(68% 0.11 30);
+
+  --c-scrim: oklch(10% 0.006 76 / 0.6);
+}
+
+/* ---------------------------------------------------------------------------
+ * Type ramp
+ * Fraunces is reserved for headings and the wordmark. Everything that is read
+ * rather than admired — prices, specs, buttons, forms — is Inter.
+ * ------------------------------------------------------------------------ */
+
+.t-display-xl,
+.t-display-l,
+.t-display-m,
+.t-display-s {
+  font-family: var(--font-display);
+  font-weight: 300;
+  color: var(--c-fg);
+  margin: 0;
+}
+
+.t-display-xl {
+  font-size: 40px;
+  line-height: 1.16;
+  letter-spacing: -0.01em;
+}
+.t-display-l {
+  font-size: 30px;
+  line-height: 1.24;
+}
+.t-display-m {
+  font-size: 24px;
+  line-height: 1.3;
+}
+.t-display-s {
+  font-size: 22px;
+  line-height: 1.2;
+}
+
+.t-eyebrow {
+  font: 400 10.5px/1 var(--font-ui);
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--c-fg-muted);
+}
+
+.t-label {
+  font: 500 12px/1 var(--font-ui);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--c-fg);
+}
+
+.t-body {
+  font: 300 14px/1.6 var(--font-ui);
+  color: var(--c-fg-muted);
+  max-width: 70ch;
+}
+
+.t-meta {
+  font: 300 12px/1.5 var(--font-ui);
+  color: var(--c-fg-muted);
+}
+
+.t-price {
+  font: 500 16px/1 var(--font-ui);
+  color: var(--c-fg);
+  font-variant-numeric: tabular-nums;
+}
+
+.t-price-lg {
+  font: 500 30px/1 var(--font-ui);
+  color: var(--c-fg);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+}
+
+.tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+@media (max-width: 900px) {
+  :root {
+    --pad-page: var(--pad-page-mobile);
+  }
+
+  .t-display-xl {
+    font-size: 25px;
+  }
+  .t-display-l {
+    font-size: 23px;
+  }
+  .t-display-m {
+    font-size: 20px;
+  }
+  .t-display-s {
+    font-size: 19px;
+  }
+}
