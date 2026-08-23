@@ -36,9 +36,19 @@ export type CartLineFragment = Pick<
     image?: StorefrontAPI.Maybe<
       Pick<StorefrontAPI.Image, 'id' | 'url' | 'altText' | 'width' | 'height'>
     >;
-    product: Pick<StorefrontAPI.Product, 'handle' | 'title' | 'id' | 'vendor'>;
+    product: Pick<
+      StorefrontAPI.Product,
+      'handle' | 'title' | 'id' | 'vendor'
+    > & {
+      metafields: Array<
+        StorefrontAPI.Maybe<Pick<StorefrontAPI.Metafield, 'key' | 'value'>>
+      >;
+    };
     selectedOptions: Array<
       Pick<StorefrontAPI.SelectedOption, 'name' | 'value'>
+    >;
+    metafields: Array<
+      StorefrontAPI.Maybe<Pick<StorefrontAPI.Metafield, 'key' | 'value'>>
     >;
   };
   parentRelationship?: StorefrontAPI.Maybe<{
@@ -74,9 +84,19 @@ export type CartLineComponentFragment = Pick<
     image?: StorefrontAPI.Maybe<
       Pick<StorefrontAPI.Image, 'id' | 'url' | 'altText' | 'width' | 'height'>
     >;
-    product: Pick<StorefrontAPI.Product, 'handle' | 'title' | 'id' | 'vendor'>;
+    product: Pick<
+      StorefrontAPI.Product,
+      'handle' | 'title' | 'id' | 'vendor'
+    > & {
+      metafields: Array<
+        StorefrontAPI.Maybe<Pick<StorefrontAPI.Metafield, 'key' | 'value'>>
+      >;
+    };
     selectedOptions: Array<
       Pick<StorefrontAPI.SelectedOption, 'name' | 'value'>
+    >;
+    metafields: Array<
+      StorefrontAPI.Maybe<Pick<StorefrontAPI.Metafield, 'key' | 'value'>>
     >;
   };
   lineComponents: Array<
@@ -114,9 +134,16 @@ export type CartLineComponentFragment = Pick<
         product: Pick<
           StorefrontAPI.Product,
           'handle' | 'title' | 'id' | 'vendor'
-        >;
+        > & {
+          metafields: Array<
+            StorefrontAPI.Maybe<Pick<StorefrontAPI.Metafield, 'key' | 'value'>>
+          >;
+        };
         selectedOptions: Array<
           Pick<StorefrontAPI.SelectedOption, 'name' | 'value'>
+        >;
+        metafields: Array<
+          StorefrontAPI.Maybe<Pick<StorefrontAPI.Metafield, 'key' | 'value'>>
         >;
       };
       parentRelationship?: StorefrontAPI.Maybe<{
@@ -182,9 +209,20 @@ export type CartApiQueryFragment = Pick<
             product: Pick<
               StorefrontAPI.Product,
               'handle' | 'title' | 'id' | 'vendor'
-            >;
+            > & {
+              metafields: Array<
+                StorefrontAPI.Maybe<
+                  Pick<StorefrontAPI.Metafield, 'key' | 'value'>
+                >
+              >;
+            };
             selectedOptions: Array<
               Pick<StorefrontAPI.SelectedOption, 'name' | 'value'>
+            >;
+            metafields: Array<
+              StorefrontAPI.Maybe<
+                Pick<StorefrontAPI.Metafield, 'key' | 'value'>
+              >
             >;
           };
           parentRelationship?: StorefrontAPI.Maybe<{
@@ -225,9 +263,20 @@ export type CartApiQueryFragment = Pick<
             product: Pick<
               StorefrontAPI.Product,
               'handle' | 'title' | 'id' | 'vendor'
-            >;
+            > & {
+              metafields: Array<
+                StorefrontAPI.Maybe<
+                  Pick<StorefrontAPI.Metafield, 'key' | 'value'>
+                >
+              >;
+            };
             selectedOptions: Array<
               Pick<StorefrontAPI.SelectedOption, 'name' | 'value'>
+            >;
+            metafields: Array<
+              StorefrontAPI.Maybe<
+                Pick<StorefrontAPI.Metafield, 'key' | 'value'>
+              >
             >;
           };
           lineComponents: Array<
@@ -268,9 +317,20 @@ export type CartApiQueryFragment = Pick<
                 product: Pick<
                   StorefrontAPI.Product,
                   'handle' | 'title' | 'id' | 'vendor'
-                >;
+                > & {
+                  metafields: Array<
+                    StorefrontAPI.Maybe<
+                      Pick<StorefrontAPI.Metafield, 'key' | 'value'>
+                    >
+                  >;
+                };
                 selectedOptions: Array<
                   Pick<StorefrontAPI.SelectedOption, 'name' | 'value'>
+                >;
+                metafields: Array<
+                  StorefrontAPI.Maybe<
+                    Pick<StorefrontAPI.Metafield, 'key' | 'value'>
+                  >
                 >;
               };
               parentRelationship?: StorefrontAPI.Maybe<{
@@ -405,6 +465,19 @@ export type FooterQuery = {
       >;
     }
   >;
+};
+
+export type ShopMetalRatesQueryVariables = StorefrontAPI.Exact<{
+  country?: StorefrontAPI.InputMaybe<StorefrontAPI.CountryCode>;
+  language?: StorefrontAPI.InputMaybe<StorefrontAPI.LanguageCode>;
+}>;
+
+export type ShopMetalRatesQuery = {
+  shop: {
+    metafields: Array<
+      StorefrontAPI.Maybe<Pick<StorefrontAPI.Metafield, 'key' | 'value'>>
+    >;
+  };
 };
 
 export type ProductTileFragment = Pick<
@@ -691,6 +764,27 @@ export type RecommendedProductsQuery = {
       }>;
     };
   }>;
+};
+
+export type NavCollectionsQueryVariables = StorefrontAPI.Exact<{
+  country?: StorefrontAPI.InputMaybe<StorefrontAPI.CountryCode>;
+  language?: StorefrontAPI.InputMaybe<StorefrontAPI.LanguageCode>;
+  first?: StorefrontAPI.InputMaybe<StorefrontAPI.Scalars['Int']['input']>;
+}>;
+
+export type NavCollectionsQuery = {
+  collections: {
+    nodes: Array<
+      Pick<StorefrontAPI.Collection, 'id' | 'handle' | 'title'> & {
+        image?: StorefrontAPI.Maybe<
+          Pick<
+            StorefrontAPI.Image,
+            'id' | 'altText' | 'url' | 'width' | 'height'
+          >
+        >;
+      }
+    >;
+  };
 };
 
 export type ArticleQueryVariables = StorefrontAPI.Exact<{
@@ -1264,25 +1358,33 @@ interface GeneratedQueryTypes {
     return: FooterQuery;
     variables: FooterQueryVariables;
   };
-  '#graphql\n  #graphql\n  fragment ProductTile on Product {\n    id\n    handle\n    title\n    productType\n    availableForSale\n    featuredImage {\n      id\n      altText\n      url\n      width\n      height\n    }\n    priceRange {\n      minVariantPrice {\n        amount\n        currencyCode\n      }\n    }\n    selectedOrFirstAvailableVariant(ignoreUnknownOptions: true, caseInsensitiveMatch: true) {\n      id\n      availableForSale\n      price {\n        amount\n        currencyCode\n      }\n      metafields(identifiers: [\n        {namespace: "sha", key: "nett_weight_g"},\n        {namespace: "sha", key: "making_charge"}\n      ]) {\n        key\n        value\n      }\n    }\n    metafields(identifiers: [\n      {namespace: "sha", key: "nett_weight_g"},\n      {namespace: "sha", key: "making_charge"},\n      {namespace: "sha", key: "weight_tolerance_g"},\n      {namespace: "sha", key: "purity"},\n      {namespace: "sha", key: "huid"},\n      {namespace: "sha", key: "dimensions"},\n      {namespace: "sha", key: "finish_note"},\n      {namespace: "sha", key: "made_at"},\n      {namespace: "sha", key: "article_code"}\n    ]) {\n      key\n      value\n    }\n  }\n\n  query FeaturedProducts(\n    $country: CountryCode\n    $language: LanguageCode\n    $first: Int\n  ) @inContext(country: $country, language: $language) {\n    products(first: $first, sortKey: BEST_SELLING) {\n      nodes {\n        ...ProductTile\n      }\n    }\n  }\n': {
+  '#graphql\n  query ShopMetalRates($country: CountryCode, $language: LanguageCode)\n  @inContext(country: $country, language: $language) {\n    shop {\n      metafields(identifiers: [\n        {namespace: "custom", key: "metal_rates"},\n        {namespace: "custom", key: "rate_silver"},\n        {namespace: "custom", key: "rate_gold"},\n        {namespace: "custom", key: "market_silver"},\n        {namespace: "custom", key: "market_gold"},\n        {namespace: "custom", key: "rate_updated_at"},\n        {namespace: "custom", key: "rate_currency"},\n        {namespace: "sha", key: "metal_rates"},\n        {namespace: "sha", key: "rate_silver"},\n        {namespace: "sha", key: "rate_gold"},\n        {namespace: "sha", key: "market_silver"},\n        {namespace: "sha", key: "market_gold"},\n        {namespace: "sha", key: "rate_updated_at"},\n        {namespace: "sha", key: "rate_currency"}\n      ]) {\n        key\n        value\n      }\n    }\n  }\n': {
+    return: ShopMetalRatesQuery;
+    variables: ShopMetalRatesQueryVariables;
+  };
+  '#graphql\n  #graphql\n  fragment ProductTile on Product {\n    id\n    handle\n    title\n    productType\n    availableForSale\n    featuredImage {\n      id\n      altText\n      url\n      width\n      height\n    }\n    priceRange {\n      minVariantPrice {\n        amount\n        currencyCode\n      }\n    }\n    selectedOrFirstAvailableVariant(ignoreUnknownOptions: true, caseInsensitiveMatch: true) {\n      id\n      availableForSale\n      price {\n        amount\n        currencyCode\n      }\n      metafields(identifiers: [\n        {namespace: "custom", key: "metal_name"},\n        {namespace: "custom", key: "metal_weight"},\n        {namespace: "custom", key: "making_charge"},\n        {namespace: "custom", key: "metal"},\n        {namespace: "custom", key: "nett_weight_g"},\n        {namespace: "sha", key: "metal"},\n        {namespace: "sha", key: "nett_weight_g"},\n        {namespace: "sha", key: "making_charge"}\n      ]) {\n        key\n        value\n      }\n    }\n    metafields(identifiers: [\n      {namespace: "custom", key: "metal_name"},\n      {namespace: "custom", key: "metal_weight"},\n      {namespace: "custom", key: "making_charge"},\n      {namespace: "custom", key: "metal"},\n      {namespace: "custom", key: "nett_weight_g"},\n      {namespace: "sha", key: "metal"},\n      {namespace: "sha", key: "nett_weight_g"},\n      {namespace: "sha", key: "making_charge"}\n    ]) {\n      key\n      value\n    }\n  }\n\n  query FeaturedProducts(\n    $country: CountryCode\n    $language: LanguageCode\n    $first: Int\n  ) @inContext(country: $country, language: $language) {\n    products(first: $first, sortKey: BEST_SELLING) {\n      nodes {\n        ...ProductTile\n      }\n    }\n  }\n': {
     return: FeaturedProductsQuery;
     variables: FeaturedProductsQueryVariables;
   };
-  '#graphql\n  #graphql\n  fragment ProductTile on Product {\n    id\n    handle\n    title\n    productType\n    availableForSale\n    featuredImage {\n      id\n      altText\n      url\n      width\n      height\n    }\n    priceRange {\n      minVariantPrice {\n        amount\n        currencyCode\n      }\n    }\n    selectedOrFirstAvailableVariant(ignoreUnknownOptions: true, caseInsensitiveMatch: true) {\n      id\n      availableForSale\n      price {\n        amount\n        currencyCode\n      }\n      metafields(identifiers: [\n        {namespace: "sha", key: "nett_weight_g"},\n        {namespace: "sha", key: "making_charge"}\n      ]) {\n        key\n        value\n      }\n    }\n    metafields(identifiers: [\n      {namespace: "sha", key: "nett_weight_g"},\n      {namespace: "sha", key: "making_charge"},\n      {namespace: "sha", key: "weight_tolerance_g"},\n      {namespace: "sha", key: "purity"},\n      {namespace: "sha", key: "huid"},\n      {namespace: "sha", key: "dimensions"},\n      {namespace: "sha", key: "finish_note"},\n      {namespace: "sha", key: "made_at"},\n      {namespace: "sha", key: "article_code"}\n    ]) {\n      key\n      value\n    }\n  }\n\n  query Collection(\n    $handle: String!\n    $country: CountryCode\n    $language: LanguageCode\n    $first: Int\n    $last: Int\n    $startCursor: String\n    $endCursor: String\n    $sortKey: ProductCollectionSortKeys\n    $reverse: Boolean\n  ) @inContext(country: $country, language: $language) {\n    collection(handle: $handle) {\n      id\n      handle\n      title\n      description\n      products(\n        first: $first,\n        last: $last,\n        before: $startCursor,\n        after: $endCursor,\n        sortKey: $sortKey,\n        reverse: $reverse\n      ) {\n        nodes {\n          ...ProductTile\n        }\n        pageInfo {\n          hasPreviousPage\n          hasNextPage\n          endCursor\n          startCursor\n        }\n      }\n    }\n  }\n': {
+  '#graphql\n  #graphql\n  fragment ProductTile on Product {\n    id\n    handle\n    title\n    productType\n    availableForSale\n    featuredImage {\n      id\n      altText\n      url\n      width\n      height\n    }\n    priceRange {\n      minVariantPrice {\n        amount\n        currencyCode\n      }\n    }\n    selectedOrFirstAvailableVariant(ignoreUnknownOptions: true, caseInsensitiveMatch: true) {\n      id\n      availableForSale\n      price {\n        amount\n        currencyCode\n      }\n      metafields(identifiers: [\n        {namespace: "custom", key: "metal_name"},\n        {namespace: "custom", key: "metal_weight"},\n        {namespace: "custom", key: "making_charge"},\n        {namespace: "custom", key: "metal"},\n        {namespace: "custom", key: "nett_weight_g"},\n        {namespace: "sha", key: "metal"},\n        {namespace: "sha", key: "nett_weight_g"},\n        {namespace: "sha", key: "making_charge"}\n      ]) {\n        key\n        value\n      }\n    }\n    metafields(identifiers: [\n      {namespace: "custom", key: "metal_name"},\n      {namespace: "custom", key: "metal_weight"},\n      {namespace: "custom", key: "making_charge"},\n      {namespace: "custom", key: "metal"},\n      {namespace: "custom", key: "nett_weight_g"},\n      {namespace: "sha", key: "metal"},\n      {namespace: "sha", key: "nett_weight_g"},\n      {namespace: "sha", key: "making_charge"}\n    ]) {\n      key\n      value\n    }\n  }\n\n  query Collection(\n    $handle: String!\n    $country: CountryCode\n    $language: LanguageCode\n    $first: Int\n    $last: Int\n    $startCursor: String\n    $endCursor: String\n    $sortKey: ProductCollectionSortKeys\n    $reverse: Boolean\n  ) @inContext(country: $country, language: $language) {\n    collection(handle: $handle) {\n      id\n      handle\n      title\n      description\n      products(\n        first: $first,\n        last: $last,\n        before: $startCursor,\n        after: $endCursor,\n        sortKey: $sortKey,\n        reverse: $reverse\n      ) {\n        nodes {\n          ...ProductTile\n        }\n        pageInfo {\n          hasPreviousPage\n          hasNextPage\n          endCursor\n          startCursor\n        }\n      }\n    }\n  }\n': {
     return: CollectionQuery;
     variables: CollectionQueryVariables;
   };
-  '#graphql\n  #graphql\n  fragment ProductTile on Product {\n    id\n    handle\n    title\n    productType\n    availableForSale\n    featuredImage {\n      id\n      altText\n      url\n      width\n      height\n    }\n    priceRange {\n      minVariantPrice {\n        amount\n        currencyCode\n      }\n    }\n    selectedOrFirstAvailableVariant(ignoreUnknownOptions: true, caseInsensitiveMatch: true) {\n      id\n      availableForSale\n      price {\n        amount\n        currencyCode\n      }\n      metafields(identifiers: [\n        {namespace: "sha", key: "nett_weight_g"},\n        {namespace: "sha", key: "making_charge"}\n      ]) {\n        key\n        value\n      }\n    }\n    metafields(identifiers: [\n      {namespace: "sha", key: "nett_weight_g"},\n      {namespace: "sha", key: "making_charge"},\n      {namespace: "sha", key: "weight_tolerance_g"},\n      {namespace: "sha", key: "purity"},\n      {namespace: "sha", key: "huid"},\n      {namespace: "sha", key: "dimensions"},\n      {namespace: "sha", key: "finish_note"},\n      {namespace: "sha", key: "made_at"},\n      {namespace: "sha", key: "article_code"}\n    ]) {\n      key\n      value\n    }\n  }\n\n  query AllProducts(\n    $country: CountryCode\n    $language: LanguageCode\n    $first: Int\n    $last: Int\n    $startCursor: String\n    $endCursor: String\n    $sortKey: ProductSortKeys\n    $reverse: Boolean\n  ) @inContext(country: $country, language: $language) {\n    products(\n      first: $first,\n      last: $last,\n      before: $startCursor,\n      after: $endCursor,\n      sortKey: $sortKey,\n      reverse: $reverse\n    ) {\n      nodes {\n        ...ProductTile\n      }\n      pageInfo {\n        hasPreviousPage\n        hasNextPage\n        endCursor\n        startCursor\n      }\n    }\n  }\n': {
+  '#graphql\n  #graphql\n  fragment ProductTile on Product {\n    id\n    handle\n    title\n    productType\n    availableForSale\n    featuredImage {\n      id\n      altText\n      url\n      width\n      height\n    }\n    priceRange {\n      minVariantPrice {\n        amount\n        currencyCode\n      }\n    }\n    selectedOrFirstAvailableVariant(ignoreUnknownOptions: true, caseInsensitiveMatch: true) {\n      id\n      availableForSale\n      price {\n        amount\n        currencyCode\n      }\n      metafields(identifiers: [\n        {namespace: "custom", key: "metal_name"},\n        {namespace: "custom", key: "metal_weight"},\n        {namespace: "custom", key: "making_charge"},\n        {namespace: "custom", key: "metal"},\n        {namespace: "custom", key: "nett_weight_g"},\n        {namespace: "sha", key: "metal"},\n        {namespace: "sha", key: "nett_weight_g"},\n        {namespace: "sha", key: "making_charge"}\n      ]) {\n        key\n        value\n      }\n    }\n    metafields(identifiers: [\n      {namespace: "custom", key: "metal_name"},\n      {namespace: "custom", key: "metal_weight"},\n      {namespace: "custom", key: "making_charge"},\n      {namespace: "custom", key: "metal"},\n      {namespace: "custom", key: "nett_weight_g"},\n      {namespace: "sha", key: "metal"},\n      {namespace: "sha", key: "nett_weight_g"},\n      {namespace: "sha", key: "making_charge"}\n    ]) {\n      key\n      value\n    }\n  }\n\n  query AllProducts(\n    $country: CountryCode\n    $language: LanguageCode\n    $first: Int\n    $last: Int\n    $startCursor: String\n    $endCursor: String\n    $sortKey: ProductSortKeys\n    $reverse: Boolean\n  ) @inContext(country: $country, language: $language) {\n    products(\n      first: $first,\n      last: $last,\n      before: $startCursor,\n      after: $endCursor,\n      sortKey: $sortKey,\n      reverse: $reverse\n    ) {\n      nodes {\n        ...ProductTile\n      }\n      pageInfo {\n        hasPreviousPage\n        hasNextPage\n        endCursor\n        startCursor\n      }\n    }\n  }\n': {
     return: AllProductsQuery;
     variables: AllProductsQueryVariables;
   };
-  '#graphql\n  #graphql\n  fragment ProductTile on Product {\n    id\n    handle\n    title\n    productType\n    availableForSale\n    featuredImage {\n      id\n      altText\n      url\n      width\n      height\n    }\n    priceRange {\n      minVariantPrice {\n        amount\n        currencyCode\n      }\n    }\n    selectedOrFirstAvailableVariant(ignoreUnknownOptions: true, caseInsensitiveMatch: true) {\n      id\n      availableForSale\n      price {\n        amount\n        currencyCode\n      }\n      metafields(identifiers: [\n        {namespace: "sha", key: "nett_weight_g"},\n        {namespace: "sha", key: "making_charge"}\n      ]) {\n        key\n        value\n      }\n    }\n    metafields(identifiers: [\n      {namespace: "sha", key: "nett_weight_g"},\n      {namespace: "sha", key: "making_charge"},\n      {namespace: "sha", key: "weight_tolerance_g"},\n      {namespace: "sha", key: "purity"},\n      {namespace: "sha", key: "huid"},\n      {namespace: "sha", key: "dimensions"},\n      {namespace: "sha", key: "finish_note"},\n      {namespace: "sha", key: "made_at"},\n      {namespace: "sha", key: "article_code"}\n    ]) {\n      key\n      value\n    }\n  }\n\n  query SearchProducts(\n    $country: CountryCode\n    $language: LanguageCode\n    $query: String!\n    $first: Int\n  ) @inContext(country: $country, language: $language) {\n    products(first: $first, query: $query) {\n      nodes {\n        ...ProductTile\n      }\n    }\n  }\n': {
+  '#graphql\n  #graphql\n  fragment ProductTile on Product {\n    id\n    handle\n    title\n    productType\n    availableForSale\n    featuredImage {\n      id\n      altText\n      url\n      width\n      height\n    }\n    priceRange {\n      minVariantPrice {\n        amount\n        currencyCode\n      }\n    }\n    selectedOrFirstAvailableVariant(ignoreUnknownOptions: true, caseInsensitiveMatch: true) {\n      id\n      availableForSale\n      price {\n        amount\n        currencyCode\n      }\n      metafields(identifiers: [\n        {namespace: "custom", key: "metal_name"},\n        {namespace: "custom", key: "metal_weight"},\n        {namespace: "custom", key: "making_charge"},\n        {namespace: "custom", key: "metal"},\n        {namespace: "custom", key: "nett_weight_g"},\n        {namespace: "sha", key: "metal"},\n        {namespace: "sha", key: "nett_weight_g"},\n        {namespace: "sha", key: "making_charge"}\n      ]) {\n        key\n        value\n      }\n    }\n    metafields(identifiers: [\n      {namespace: "custom", key: "metal_name"},\n      {namespace: "custom", key: "metal_weight"},\n      {namespace: "custom", key: "making_charge"},\n      {namespace: "custom", key: "metal"},\n      {namespace: "custom", key: "nett_weight_g"},\n      {namespace: "sha", key: "metal"},\n      {namespace: "sha", key: "nett_weight_g"},\n      {namespace: "sha", key: "making_charge"}\n    ]) {\n      key\n      value\n    }\n  }\n\n  query SearchProducts(\n    $country: CountryCode\n    $language: LanguageCode\n    $query: String!\n    $first: Int\n  ) @inContext(country: $country, language: $language) {\n    products(first: $first, query: $query) {\n      nodes {\n        ...ProductTile\n      }\n    }\n  }\n': {
     return: SearchProductsQuery;
     variables: SearchProductsQueryVariables;
   };
-  '#graphql\n  #graphql\n  fragment ProductTile on Product {\n    id\n    handle\n    title\n    productType\n    availableForSale\n    featuredImage {\n      id\n      altText\n      url\n      width\n      height\n    }\n    priceRange {\n      minVariantPrice {\n        amount\n        currencyCode\n      }\n    }\n    selectedOrFirstAvailableVariant(ignoreUnknownOptions: true, caseInsensitiveMatch: true) {\n      id\n      availableForSale\n      price {\n        amount\n        currencyCode\n      }\n      metafields(identifiers: [\n        {namespace: "sha", key: "nett_weight_g"},\n        {namespace: "sha", key: "making_charge"}\n      ]) {\n        key\n        value\n      }\n    }\n    metafields(identifiers: [\n      {namespace: "sha", key: "nett_weight_g"},\n      {namespace: "sha", key: "making_charge"},\n      {namespace: "sha", key: "weight_tolerance_g"},\n      {namespace: "sha", key: "purity"},\n      {namespace: "sha", key: "huid"},\n      {namespace: "sha", key: "dimensions"},\n      {namespace: "sha", key: "finish_note"},\n      {namespace: "sha", key: "made_at"},\n      {namespace: "sha", key: "article_code"}\n    ]) {\n      key\n      value\n    }\n  }\n\n  query RecommendedProducts(\n    $country: CountryCode\n    $language: LanguageCode\n    $handle: String!\n  ) @inContext(country: $country, language: $language) {\n    product(handle: $handle) {\n      collections(first: 1) {\n        nodes {\n          products(first: 5) {\n            nodes {\n              ...ProductTile\n            }\n          }\n        }\n      }\n    }\n  }\n': {
+  '#graphql\n  #graphql\n  fragment ProductTile on Product {\n    id\n    handle\n    title\n    productType\n    availableForSale\n    featuredImage {\n      id\n      altText\n      url\n      width\n      height\n    }\n    priceRange {\n      minVariantPrice {\n        amount\n        currencyCode\n      }\n    }\n    selectedOrFirstAvailableVariant(ignoreUnknownOptions: true, caseInsensitiveMatch: true) {\n      id\n      availableForSale\n      price {\n        amount\n        currencyCode\n      }\n      metafields(identifiers: [\n        {namespace: "custom", key: "metal_name"},\n        {namespace: "custom", key: "metal_weight"},\n        {namespace: "custom", key: "making_charge"},\n        {namespace: "custom", key: "metal"},\n        {namespace: "custom", key: "nett_weight_g"},\n        {namespace: "sha", key: "metal"},\n        {namespace: "sha", key: "nett_weight_g"},\n        {namespace: "sha", key: "making_charge"}\n      ]) {\n        key\n        value\n      }\n    }\n    metafields(identifiers: [\n      {namespace: "custom", key: "metal_name"},\n      {namespace: "custom", key: "metal_weight"},\n      {namespace: "custom", key: "making_charge"},\n      {namespace: "custom", key: "metal"},\n      {namespace: "custom", key: "nett_weight_g"},\n      {namespace: "sha", key: "metal"},\n      {namespace: "sha", key: "nett_weight_g"},\n      {namespace: "sha", key: "making_charge"}\n    ]) {\n      key\n      value\n    }\n  }\n\n  query RecommendedProducts(\n    $country: CountryCode\n    $language: LanguageCode\n    $handle: String!\n  ) @inContext(country: $country, language: $language) {\n    product(handle: $handle) {\n      collections(first: 1) {\n        nodes {\n          products(first: 5) {\n            nodes {\n              ...ProductTile\n            }\n          }\n        }\n      }\n    }\n  }\n': {
     return: RecommendedProductsQuery;
     variables: RecommendedProductsQueryVariables;
+  };
+  '#graphql\n  query NavCollections(\n    $country: CountryCode\n    $language: LanguageCode\n    $first: Int\n  ) @inContext(country: $country, language: $language) {\n    collections(first: $first, sortKey: TITLE) {\n      nodes {\n        id\n        handle\n        title\n        image {\n          id\n          altText\n          url\n          width\n          height\n        }\n      }\n    }\n  }\n': {
+    return: NavCollectionsQuery;
+    variables: NavCollectionsQueryVariables;
   };
   '#graphql\n  query Article(\n    $articleHandle: String!\n    $blogHandle: String!\n    $country: CountryCode\n    $language: LanguageCode\n  ) @inContext(language: $language, country: $country) {\n    blog(handle: $blogHandle) {\n      handle\n      articleByHandle(handle: $articleHandle) {\n        handle\n        title\n        contentHtml\n        publishedAt\n        author: authorV2 {\n          name\n        }\n        image {\n          id\n          altText\n          url\n          width\n          height\n        }\n        seo {\n          description\n          title\n        }\n      }\n    }\n  }\n': {
     return: ArticleQuery;
@@ -1316,7 +1418,7 @@ interface GeneratedQueryTypes {
     return: PoliciesQuery;
     variables: PoliciesQueryVariables;
   };
-  '#graphql\n  query Product(\n    $country: CountryCode\n    $handle: String!\n    $language: LanguageCode\n    $selectedOptions: [SelectedOptionInput!]!\n  ) @inContext(country: $country, language: $language) {\n    product(handle: $handle) {\n      ...Product\n    }\n  }\n  #graphql\n  fragment Product on Product {\n    id\n    title\n    vendor\n    handle\n    productType\n    descriptionHtml\n    description\n    encodedVariantExistence\n    encodedVariantAvailability\n    images(first: 5) {\n      nodes {\n        id\n        url\n        altText\n        width\n        height\n      }\n    }\n    options {\n      name\n      optionValues {\n        name\n        firstSelectableVariant {\n          ...ProductVariant\n        }\n        swatch {\n          color\n          image {\n            previewImage {\n              url\n            }\n          }\n        }\n      }\n    }\n    selectedOrFirstAvailableVariant(selectedOptions: $selectedOptions, ignoreUnknownOptions: true, caseInsensitiveMatch: true) {\n      ...ProductVariant\n    }\n    adjacentVariants (selectedOptions: $selectedOptions) {\n      ...ProductVariant\n    }\n    metafields(identifiers: [\n      {namespace: "sha", key: "nett_weight_g"},\n      {namespace: "sha", key: "making_charge"},\n      {namespace: "sha", key: "weight_tolerance_g"},\n      {namespace: "sha", key: "purity"},\n      {namespace: "sha", key: "huid"},\n      {namespace: "sha", key: "dimensions"},\n      {namespace: "sha", key: "finish_note"},\n      {namespace: "sha", key: "made_at"},\n      {namespace: "sha", key: "article_code"}\n    ]) {\n      key\n      value\n    }\n    seo {\n      description\n      title\n    }\n  }\n  #graphql\n  fragment ProductVariant on ProductVariant {\n    availableForSale\n    compareAtPrice {\n      amount\n      currencyCode\n    }\n    id\n    image {\n      __typename\n      id\n      url\n      altText\n      width\n      height\n    }\n    price {\n      amount\n      currencyCode\n    }\n    product {\n      title\n      handle\n    }\n    selectedOptions {\n      name\n      value\n    }\n    sku\n    title\n    metafields(identifiers: [\n      {namespace: "sha", key: "nett_weight_g"},\n      {namespace: "sha", key: "making_charge"}\n    ]) {\n      key\n      value\n    }\n  }\n\n\n': {
+  '#graphql\n  query Product(\n    $country: CountryCode\n    $handle: String!\n    $language: LanguageCode\n    $selectedOptions: [SelectedOptionInput!]!\n  ) @inContext(country: $country, language: $language) {\n    product(handle: $handle) {\n      ...Product\n    }\n  }\n  #graphql\n  fragment Product on Product {\n    id\n    title\n    vendor\n    handle\n    productType\n    descriptionHtml\n    description\n    encodedVariantExistence\n    encodedVariantAvailability\n    images(first: 5) {\n      nodes {\n        id\n        url\n        altText\n        width\n        height\n      }\n    }\n    options {\n      name\n      optionValues {\n        name\n        firstSelectableVariant {\n          ...ProductVariant\n        }\n        swatch {\n          color\n          image {\n            previewImage {\n              url\n            }\n          }\n        }\n      }\n    }\n    selectedOrFirstAvailableVariant(selectedOptions: $selectedOptions, ignoreUnknownOptions: true, caseInsensitiveMatch: true) {\n      ...ProductVariant\n    }\n    adjacentVariants (selectedOptions: $selectedOptions) {\n      ...ProductVariant\n    }\n    metafields(identifiers: [\n      {namespace: "custom", key: "metal_name"},\n      {namespace: "custom", key: "metal_weight"},\n      {namespace: "custom", key: "making_charge"},\n      {namespace: "custom", key: "metal"},\n      {namespace: "custom", key: "nett_weight_g"},\n      {namespace: "sha", key: "metal"},\n      {namespace: "sha", key: "nett_weight_g"},\n      {namespace: "sha", key: "making_charge"}\n    ]) {\n      key\n      value\n    }\n    seo {\n      description\n      title\n    }\n  }\n  #graphql\n  fragment ProductVariant on ProductVariant {\n    availableForSale\n    compareAtPrice {\n      amount\n      currencyCode\n    }\n    id\n    image {\n      __typename\n      id\n      url\n      altText\n      width\n      height\n    }\n    price {\n      amount\n      currencyCode\n    }\n    product {\n      title\n      handle\n    }\n    selectedOptions {\n      name\n      value\n    }\n    sku\n    title\n    metafields(identifiers: [\n      {namespace: "custom", key: "metal_name"},\n      {namespace: "custom", key: "metal_weight"},\n      {namespace: "custom", key: "making_charge"},\n      {namespace: "custom", key: "metal"},\n      {namespace: "custom", key: "nett_weight_g"},\n      {namespace: "sha", key: "metal"},\n      {namespace: "sha", key: "nett_weight_g"},\n      {namespace: "sha", key: "making_charge"}\n    ]) {\n      key\n      value\n    }\n  }\n\n\n': {
     return: ProductQuery;
     variables: ProductQueryVariables;
   };

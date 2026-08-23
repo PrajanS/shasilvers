@@ -14,13 +14,13 @@ import {RateStrip} from '~/components/RateStrip';
  * @param {{
  *   cart: Promise<any>,
  *   children?: React.ReactNode,
- *   rate: {ratePerGram: number, updatedAt: string, currencyCode: string},
+ *   rates: {list: Array<any>, updatedAt: string|null, currencyCode: string},
  * }} props
  */
-export function PageLayout({cart, children = null, rate, demo = false}) {
+export function PageLayout({cart, children = null, rates}) {
   return (
     <Aside.Provider>
-      <CartAside cart={cart} />
+      <CartAside cart={cart} rates={rates} />
       <MobileMenuAside />
 
       {/* First stop in the tab order on every page. */}
@@ -28,20 +28,20 @@ export function PageLayout({cart, children = null, rate, demo = false}) {
         Skip to content
       </a>
 
-      <RateStrip rate={rate} />
-      <Header cart={cart} />
+      <RateStrip rates={rates} />
+      <Header cart={cart} rates={rates} />
 
       <main id="main" tabIndex={-1}>
         {children}
       </main>
 
-      <Footer demo={demo} />
+      <Footer />
     </Aside.Provider>
   );
 }
 
-/** @param {{cart: Promise<any>}} props */
-function CartAside({cart}) {
+/** @param {{cart: Promise<any>, rates?: any}} props */
+function CartAside({cart, rates}) {
   return (
     <Aside
       type="cart"
@@ -60,7 +60,9 @@ function CartAside({cart}) {
     >
       <Suspense fallback={<p className="cart-empty">Loading bag…</p>}>
         <Await resolve={cart}>
-          {(resolved) => <CartMain cart={resolved} layout="aside" />}
+          {(resolved) => (
+            <CartMain cart={resolved} layout="aside" rates={rates} />
+          )}
         </Await>
       </Suspense>
     </Aside>

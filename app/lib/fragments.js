@@ -47,6 +47,19 @@ export const CART_QUERY_FRAGMENT = `#graphql
           title
           id
           vendor
+          metafields(identifiers: [
+            {namespace: "custom", key: "metal_name"},
+            {namespace: "custom", key: "metal_weight"},
+            {namespace: "custom", key: "making_charge"},
+            {namespace: "custom", key: "metal"},
+            {namespace: "custom", key: "nett_weight_g"},
+            {namespace: "sha", key: "metal"},
+            {namespace: "sha", key: "nett_weight_g"},
+            {namespace: "sha", key: "making_charge"}
+          ]) {
+            key
+            value
+          }
         }
         selectedOptions {
           name
@@ -56,6 +69,21 @@ export const CART_QUERY_FRAGMENT = `#graphql
         # alongside its total price.
         weight
         weightUnit
+        # The bag calculates its own line prices from the same facts the
+        # product page does: rate x nett weight + making charge.
+        metafields(identifiers: [
+          {namespace: "custom", key: "metal_name"},
+          {namespace: "custom", key: "metal_weight"},
+          {namespace: "custom", key: "making_charge"},
+          {namespace: "custom", key: "metal"},
+          {namespace: "custom", key: "nett_weight_g"},
+          {namespace: "sha", key: "metal"},
+          {namespace: "sha", key: "nett_weight_g"},
+          {namespace: "sha", key: "making_charge"}
+        ]) {
+          key
+          value
+        }
       }
     }
     parentRelationship {
@@ -106,6 +134,19 @@ export const CART_QUERY_FRAGMENT = `#graphql
           title
           id
           vendor
+          metafields(identifiers: [
+            {namespace: "custom", key: "metal_name"},
+            {namespace: "custom", key: "metal_weight"},
+            {namespace: "custom", key: "making_charge"},
+            {namespace: "custom", key: "metal"},
+            {namespace: "custom", key: "nett_weight_g"},
+            {namespace: "sha", key: "metal"},
+            {namespace: "sha", key: "nett_weight_g"},
+            {namespace: "sha", key: "making_charge"}
+          ]) {
+            key
+            value
+          }
         }
         selectedOptions {
           name
@@ -115,6 +156,21 @@ export const CART_QUERY_FRAGMENT = `#graphql
         # alongside its total price.
         weight
         weightUnit
+        # The bag calculates its own line prices from the same facts the
+        # product page does: rate x nett weight + making charge.
+        metafields(identifiers: [
+          {namespace: "custom", key: "metal_name"},
+          {namespace: "custom", key: "metal_weight"},
+          {namespace: "custom", key: "making_charge"},
+          {namespace: "custom", key: "metal"},
+          {namespace: "custom", key: "nett_weight_g"},
+          {namespace: "sha", key: "metal"},
+          {namespace: "sha", key: "nett_weight_g"},
+          {namespace: "sha", key: "making_charge"}
+        ]) {
+          key
+          value
+        }
       }
     }
     lineComponents {

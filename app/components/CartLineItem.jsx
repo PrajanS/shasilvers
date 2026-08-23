@@ -3,20 +3,25 @@ import {Link} from 'react-router';
 import {useVariantUrl} from '~/lib/variants';
 import {useAside} from '~/components/Aside';
 import {MediaWell} from '~/components/MediaWell';
-import {formatMoney} from '~/lib/money';
+import {formatAmount} from '~/lib/money';
+import {getCartLineMetrics} from '~/lib/pricing';
 
 /**
  * One article in the bag: image, title, price, the options that were chosen,
  * a stepper and a remove control.
  *
- * @param {{layout: 'page'|'aside', line: any, childrenMap: Record<string, any[]>}} props
+ * @param {{layout: 'page'|'aside', line: any, childrenMap: Record<string, any[]>, rates?: any}} props
  */
-export function CartLineItem({layout, line, childrenMap}) {
+export function CartLineItem({layout, line, childrenMap, rates}) {
   const {id, merchandise, quantity, isOptimistic} = line;
   const {product, image, selectedOptions} = merchandise;
   const lineItemUrl = useVariantUrl(product.handle, selectedOptions);
   const {close} = useAside();
   const children = childrenMap[id];
+
+  // Priced here the same way it was priced on the product page: today's
+  // rate for its metal × its nett weight, plus making, times the quantity.
+  const {lineTotal, currencyCode} = getCartLineMetrics(line, rates);
 
   // "218 g · mirror finish" — the options as a single quiet line.
   const optionSummary = selectedOptions
@@ -46,7 +51,7 @@ export function CartLineItem({layout, line, childrenMap}) {
             {product.title}
           </Link>
           <span className="cart-line__price">
-            {formatMoney(line?.cost?.totalAmount)}
+            {lineTotal === null ? null : formatAmount(lineTotal, currencyCode)}
           </span>
         </div>
 
@@ -64,13 +69,17 @@ export function CartLineItem({layout, line, childrenMap}) {
         </div>
 
         {children?.length ? (
-          <ul className="cart-children" aria-label={`Included with ${product.title}`}>
+          <ul
+            className="cart-children"
+            aria-label={`Included with ${product.title}`}
+          >
             {children.map((childLine) => (
               <CartLineItem
                 key={childLine.id}
                 line={childLine}
                 layout={layout}
                 childrenMap={childrenMap}
+                rates={rates}
               />
             ))}
           </ul>

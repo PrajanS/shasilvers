@@ -4,6 +4,7 @@ import {useAside} from '~/components/Aside';
 import {CartLineItem} from '~/components/CartLineItem';
 import {CartSummary} from '~/components/CartSummary';
 import {formatAmount} from '~/lib/money';
+import {cartTotals} from '~/lib/cart-totals';
 import {FREE_SHIPPING_THRESHOLD, SHIPPING_FEE} from '~/lib/shop';
 
 /**
@@ -34,9 +35,9 @@ function getLineItemChildrenMap(lines) {
 
 /**
  * The bag. Used by both the drawer and the /cart route.
- * @param {{cart: any, layout: 'page'|'aside'}} props
+ * @param {{cart: any, layout: 'page'|'aside', rates?: any}} props
  */
-export function CartMain({cart: originalCart, layout}) {
+export function CartMain({cart: originalCart, layout, rates}) {
   // Applies pending line mutations immediately so the drawer never lags a click.
   const cart = useOptimisticCart(originalCart);
 
@@ -44,8 +45,11 @@ export function CartMain({cart: originalCart, layout}) {
   const hasItems = (cart?.totalQuantity ?? 0) > 0;
   const childrenMap = getLineItemChildrenMap(lines);
 
-  const subtotal = Number(cart?.cost?.subtotalAmount?.amount ?? 0);
-  const currencyCode = cart?.cost?.subtotalAmount?.currencyCode ?? 'INR';
+  // The free-shipping threshold is measured against the same calculated
+  // subtotal the summary shows, not Shopify’s.
+  const totals = cartTotals(cart, rates);
+  const subtotal = totals?.subtotal ?? 0;
+  const currencyCode = totals?.currencyCode ?? 'INR';
   const qualifiesForFreeShipping = subtotal >= FREE_SHIPPING_THRESHOLD;
 
   if (!hasItems) {
@@ -94,12 +98,13 @@ export function CartMain({cart: originalCart, layout}) {
               line={line}
               layout={layout}
               childrenMap={childrenMap}
+              rates={rates}
             />
           );
         })}
       </ul>
 
-      <CartSummary cart={cart} />
+      <CartSummary cart={cart} rates={rates} />
     </section>
   );
 }
@@ -110,7 +115,11 @@ function CartEmpty() {
     <div className="cart-empty">
       <p>Your bag is empty.</p>
       <p>
-        <Link to="/collections/pooja-articles" onClick={close} prefetch="viewport">
+        <Link
+          to="/collections/pooja-articles"
+          onClick={close}
+          prefetch="viewport"
+        >
           Browse pooja articles →
         </Link>
       </p>

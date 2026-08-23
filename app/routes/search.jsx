@@ -3,11 +3,9 @@ import {ProductTile} from '~/components/ProductTile';
 import {Breadcrumbs} from '~/components/Breadcrumbs';
 import {SEARCH_PRODUCTS_QUERY} from '~/lib/product-queries';
 import {getProductMetrics} from '~/lib/pricing';
-import {getSilverRate} from '~/lib/silver-rate.server';
+import {getMetalRates} from '~/lib/metal-rates.server';
 import {getDeliveryEstimate} from '~/lib/delivery';
-import {isDemoMode} from '~/lib/demo/mode';
-import {queryDemoProducts} from '~/lib/demo/catalogue';
-import {CATEGORIES} from '~/lib/shop';
+import {useCollections} from '~/lib/collections';
 
 /** @type {Route.MetaFunction} */
 export const meta = ({data}) => [
@@ -23,39 +21,35 @@ export const meta = ({data}) => [
  * @param {Route.LoaderArgs} args
  */
 export async function loader({request, context}) {
-  const {storefront, env} = context;
+  const {storefront} = context;
   const url = new URL(request.url);
   const term = (url.searchParams.get('q') ?? '').trim();
 
-  const rate = getSilverRate();
+  const rates = await getMetalRates(storefront);
   const delivery = getDeliveryEstimate();
 
-  if (!term) return {term, items: [], rate, delivery};
+  if (!term) return {term, items: [], delivery};
 
-  // DEMO: search the Sha Silvers catalogue when no store is connected.
-  const products = isDemoMode(env)
-    ? queryDemoProducts({query: term, first: 24})
-    : (
-        await storefront.query(SEARCH_PRODUCTS_QUERY, {
-          variables: {query: term, first: 24},
-        })
-      ).products;
+  const {products} = await storefront.query(SEARCH_PRODUCTS_QUERY, {
+    variables: {query: term, first: 24},
+  });
 
   const items = (products?.nodes ?? []).map((product) => ({
     product,
     metrics: getProductMetrics({
       product,
       variant: product.selectedOrFirstAvailableVariant,
-      ratePerGram: rate.ratePerGram,
+      rates,
     }),
   }));
 
-  return {term, items, rate, delivery};
+  return {term, items, delivery};
 }
 
 export default function SearchPage() {
   /** @type {LoaderReturnData} */
   const {term, items, delivery} = useLoaderData();
+  const collections = useCollections();
 
   return (
     <div className="search-page">
@@ -91,13 +85,13 @@ export default function SearchPage() {
               : 'Search by article, category or occasion — pooja thali, diya, tumbler, gifting.'}
           </p>
           <div className="chip-row" style={{marginTop: 16}}>
-            {CATEGORIES.slice(0, 5).map((category) => (
+            {collections.slice(0, 5).map((collection) => (
               <Link
-                key={category.handle}
+                key={collection.id}
                 className="chip"
-                to={`/collections/${category.handle}`}
+                to={`/collections/${collection.handle}`}
               >
-                {category.label}
+                {collection.title}
               </Link>
             ))}
           </div>

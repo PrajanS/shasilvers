@@ -1,12 +1,13 @@
 /**
  * Product GraphQL for every screen that renders tiles.
  *
- * Silverware carries facts Shopify has no native field for — nett weight,
- * making charge, HUID, purity. They live in the `sha` metafield namespace and
- * are requested alongside the product wherever a tile or a spec table is
- * rendered. Every one of them is optional: `~/lib/pricing` falls back to
- * deterministic values, so a store that has not filled them in still renders
- * a complete, self-consistent page.
+ * An article carries three facts Shopify has no native field for: the metal,
+ * its nett weight and the making charge. Together they are the price. They are
+ * requested alongside the product wherever a tile or a spec table is rendered.
+ *
+ * Both the default `custom` namespace and `sha` are asked for, under either
+ * spelling of each key, so the definitions work however they were named in the
+ * admin. See `~/lib/pricing` for which spelling wins.
  *
  * The fragment and the documents that use it live in the same module on
  * purpose. Hydrogen's codegen validates each file's GraphQL statically and
@@ -42,6 +43,12 @@ export const PRODUCT_TILE_FRAGMENT = `#graphql
         currencyCode
       }
       metafields(identifiers: [
+        {namespace: "custom", key: "metal_name"},
+        {namespace: "custom", key: "metal_weight"},
+        {namespace: "custom", key: "making_charge"},
+        {namespace: "custom", key: "metal"},
+        {namespace: "custom", key: "nett_weight_g"},
+        {namespace: "sha", key: "metal"},
         {namespace: "sha", key: "nett_weight_g"},
         {namespace: "sha", key: "making_charge"}
       ]) {
@@ -50,15 +57,14 @@ export const PRODUCT_TILE_FRAGMENT = `#graphql
       }
     }
     metafields(identifiers: [
+      {namespace: "custom", key: "metal_name"},
+      {namespace: "custom", key: "metal_weight"},
+      {namespace: "custom", key: "making_charge"},
+      {namespace: "custom", key: "metal"},
+      {namespace: "custom", key: "nett_weight_g"},
+      {namespace: "sha", key: "metal"},
       {namespace: "sha", key: "nett_weight_g"},
-      {namespace: "sha", key: "making_charge"},
-      {namespace: "sha", key: "weight_tolerance_g"},
-      {namespace: "sha", key: "purity"},
-      {namespace: "sha", key: "huid"},
-      {namespace: "sha", key: "dimensions"},
-      {namespace: "sha", key: "finish_note"},
-      {namespace: "sha", key: "made_at"},
-      {namespace: "sha", key: "article_code"}
+      {namespace: "sha", key: "making_charge"}
     ]) {
       key
       value
@@ -198,6 +204,36 @@ export const RECOMMENDED_PRODUCTS_QUERY = `#graphql
               ...ProductTile
             }
           }
+        }
+      }
+    }
+  }
+`;
+
+/**
+ * Every published collection, for the nav, the footer and the home strip.
+ *
+ * The storefront has no hardcoded category list: what the shop sells is
+ * whatever collections exist in Shopify. Sorted by title so the order is
+ * stable between requests, and cached long — collections change rarely.
+ */
+export const COLLECTIONS_QUERY = `#graphql
+  query NavCollections(
+    $country: CountryCode
+    $language: LanguageCode
+    $first: Int
+  ) @inContext(country: $country, language: $language) {
+    collections(first: $first, sortKey: TITLE) {
+      nodes {
+        id
+        handle
+        title
+        image {
+          id
+          altText
+          url
+          width
+          height
         }
       }
     }

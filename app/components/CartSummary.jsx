@@ -7,21 +7,24 @@ import {cartWeightGrams, cartTotals} from '~/lib/cart-totals';
 /**
  * Every cost, before the buyer commits.
  *
- * Shipping and GST are named explicitly rather than left to appear at
+ * The shipping line is named explicitly rather than left to appear at
  * checkout — an unexpected line at the payment step is the single largest
  * cause of abandonment, and this shop's whole pitch is that nothing is added
  * after the fact.
  *
- * @param {{cart: any}} props
+ * Line prices are calculated from the day's rates, exactly as they are on the
+ * product page, so the bag never restates an article at a different figure.
+ *
+ * @param {{cart: any, rates?: any}} props
  */
-export function CartSummary({cart}) {
+export function CartSummary({cart, rates}) {
   const summaryId = useId();
-  const totals = cartTotals(cart);
-  const grams = cartWeightGrams(cart);
+  const totals = cartTotals(cart, rates);
+  const grams = cartWeightGrams(cart, rates);
 
   if (!totals) return null;
 
-  const {currencyCode, subtotal, shipping, gst, total, freeShipping} = totals;
+  const {currencyCode, subtotal, shipping, total, freeShipping} = totals;
 
   return (
     <div className="cart-summary" aria-labelledby={summaryId}>
@@ -41,12 +44,9 @@ export function CartSummary({cart}) {
           className={`cart-summary__row ${freeShipping ? 'cart-summary__row--free' : ''}`}
         >
           <dt>Shipping (insured)</dt>
-          <dd>{freeShipping ? 'Free' : formatAmount(shipping, currencyCode)}</dd>
-        </div>
-
-        <div className="cart-summary__row">
-          <dt>GST 3% (included)</dt>
-          <dd>{formatAmount(gst, currencyCode)}</dd>
+          <dd>
+            {freeShipping ? 'Free' : formatAmount(shipping, currencyCode)}
+          </dd>
         </div>
 
         <hr className="hairline" />

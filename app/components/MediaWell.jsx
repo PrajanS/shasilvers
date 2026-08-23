@@ -30,7 +30,10 @@ export function MediaWell({
 
   if (data?.url) {
     return (
-      <div className={classes} style={aspect !== '1/1' ? {aspectRatio: aspect} : undefined}>
+      <div
+        className={classes}
+        style={aspect !== '1/1' ? {aspectRatio: aspect} : undefined}
+      >
         <Image
           alt={data.altText || ''}
           aspectRatio={aspect}

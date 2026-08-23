@@ -1,15 +1,18 @@
-import {useLoaderData, useSearchParams, useSubmit, Link, Form} from 'react-router';
+import {
+  useLoaderData,
+  useSearchParams,
+  useSubmit,
+  Link,
+  Form,
+} from 'react-router';
 import {getPaginationVariables, Analytics, Pagination} from '@shopify/hydrogen';
 import {useId, useRef, useState} from 'react';
 import {ProductTile} from '~/components/ProductTile';
 import {Breadcrumbs} from '~/components/Breadcrumbs';
-import {ALL_PRODUCTS_QUERY, COLLECTION_QUERY} from '~/lib/product-queries';
-import {isDemoMode} from '~/lib/demo/mode';
-import {queryDemoProducts} from '~/lib/demo/catalogue';
+import {COLLECTION_QUERY} from '~/lib/product-queries';
 import {getProductMetrics} from '~/lib/pricing';
-import {getSilverRate} from '~/lib/silver-rate.server';
+import {getMetalRates} from '~/lib/metal-rates.server';
 import {getDeliveryEstimate} from '~/lib/delivery';
-import {findCategory} from '~/lib/shop';
 import {formatAmount} from '~/lib/money';
 import {
   FILTER_GROUPS,
@@ -39,38 +42,15 @@ export const meta = ({data}) => {
  * @param {Route.LoaderArgs} args
  */
 export async function loader({context, params, request}) {
-  const {storefront, env} = context;
+  const {storefront} = context;
   const {handle} = params;
   const url = new URL(request.url);
 
-  const category = findCategory(handle);
   const sort = getSort(url.searchParams.get('sort') ?? DEFAULT_SORT);
   const paginationVariables = getPaginationVariables(request, {pageBy: 24});
 
-  const rate = getSilverRate();
+  const rates = await getMetalRates(storefront);
   const delivery = getDeliveryEstimate();
-
-  // DEMO: the eight categories are real here, so an unknown handle still 404s.
-  if (isDemoMode(env)) {
-    if (!category) {
-      throw new Response(`Collection ${handle} not found`, {status: 404});
-    }
-    return {
-      title: category.label,
-      description: null,
-      products: queryDemoProducts({
-        category: handle,
-        sortKey: sort.sortKey,
-        reverse: sort.reverse,
-        first: paginationVariables.first ?? 24,
-        after: url.searchParams.get('cursor'),
-      }),
-      collectionId: null,
-      handle,
-      rate,
-      delivery,
-    };
-  }
 
   const {collection} = await storefront.query(COLLECTION_QUERY, {
     variables: {
@@ -81,48 +61,50 @@ export async function loader({context, params, request}) {
     },
   });
 
-  if (collection) {
-    return {
-      title: collection.title,
-      description: collection.description,
-      products: collection.products,
-      collectionId: collection.id,
-      handle: collection.handle,
-      rate,
-      delivery,
-    };
-  }
-
-  // The store may not have a collection for this category yet. Rather than
-  // dead-end a link that is permanently visible in the nav, fall back to the
-  // full catalogue under the category's own title. Unknown handles still 404.
-  if (!category) {
+  // A listing shows exactly what Shopify has in that collection. There is no
+  // fall back to the full catalogue: a product appears here only if it was
+  // put in this collection, and a handle the store does not have is a 404.
+  if (!collection) {
     throw new Response(`Collection ${handle} not found`, {status: 404});
   }
 
-  const {products} = await storefront.query(ALL_PRODUCTS_QUERY, {
-    variables: {
-      // The products query uses CREATED_AT where a collection uses CREATED.
-      sortKey: sort.sortKey === 'CREATED' ? 'CREATED_AT' : sort.sortKey,
-      reverse: sort.reverse,
-      ...paginationVariables,
-    },
-  });
-
   return {
-    title: category.label,
-    description: null,
-    products,
-    collectionId: null,
-    handle,
-    rate,
+    title: collection.title,
+    description: collection.description,
+    products: collection.products,
+    collectionId: collection.id,
+    handle: collection.handle,
+    rates,
     delivery,
   };
 }
 
+/**
+ * How the listing states the day's rate above the grid.
+ *
+ * A collection can hold more than one metal, so naming a single figure is
+ * only honest when the shop publishes exactly one rate. Beyond that the line
+ * says what is true of every article in the grid without picking a number.
+ *
+ * @param {{list?: Array<any>, currencyCode?: string}} rates
+ */
+function ratePhrase(rates) {
+  const list = rates?.list ?? [];
+  if (!list.length) return 'today’s metal rate';
+
+  if (list.length === 1) {
+    const [only] = list;
+    return `${formatAmount(only.ratePerGram, rates.currencyCode, {
+      decimals: true,
+    })}/g`;
+  }
+
+  return `today’s ${list.map((entry) => entry.metal).join(' and ')} rate`;
+}
+
 export default function Collection() {
   /** @type {LoaderReturnData} */
-  const {title, products, collectionId, handle, rate, delivery} =
+  const {title, products, collectionId, handle, rates, delivery} =
     useLoaderData();
   const [searchParams] = useSearchParams();
   const [panel, setPanel] = useState(null); // null | 'filter' | 'sort'
@@ -139,7 +121,7 @@ export default function Collection() {
         <FacetForm
           filters={filters}
           searchParams={searchParams}
-          rate={rate}
+          rates={rates}
           activeSort={activeSort}
           idPrefix="rail"
         />
@@ -152,14 +134,9 @@ export default function Collection() {
           <div>
             <h1 className="t-display-l">{title}</h1>
             <p className="listing__count">
-              All BIS hallmarked · priced at{' '}
-              {formatAmount(rate.ratePerGram, rate.currencyCode, {
-                decimals: true,
-              })}
-              /g + making
+              All BIS hallmarked · priced at {ratePhrase(rates)} + making
             </p>
           </div>
-
         </div>
 
         {/*
@@ -207,7 +184,7 @@ export default function Collection() {
             <FacetForm
               filters={filters}
               searchParams={searchParams}
-              rate={rate}
+              rates={rates}
               activeSort={activeSort}
               sortRef={sortRef}
               idPrefix="panel"
@@ -251,7 +228,7 @@ export default function Collection() {
               metrics: getProductMetrics({
                 product,
                 variant: product.selectedOrFirstAvailableVariant,
-                ratePerGram: rate.ratePerGram,
+                rates,
               }),
             }));
             const visible = applyFilters(decorated, filters);
@@ -348,13 +325,20 @@ export default function Collection() {
  * @param {{
  *   filters: Record<string,string[]>,
  *   searchParams: URLSearchParams,
- *   rate: any,
+ *   rates: any,
  *   activeSort: any,
  *   sortRef?: any,
  *   idPrefix?: string,
  * }} props
  */
-function FacetForm({filters, searchParams, rate, activeSort, sortRef, idPrefix}) {
+function FacetForm({
+  filters,
+  searchParams,
+  rates,
+  activeSort,
+  sortRef,
+  idPrefix,
+}) {
   const submit = useSubmit();
   const generatedId = useId();
   const sortId = `sort-${idPrefix ?? generatedId}`;
@@ -367,7 +351,9 @@ function FacetForm({filters, searchParams, rate, activeSort, sortRef, idPrefix})
       // Checkboxes are uncontrolled, so remount them whenever the URL changes
       // — otherwise removing a filter via its chip leaves the box still ticked.
       key={searchParams.toString()}
-      onChange={(event) => submit(event.currentTarget, {preventScrollReset: true})}
+      onChange={(event) =>
+        submit(event.currentTarget, {preventScrollReset: true})
+      }
     >
       {/* Preserved across a filter change; the cursor deliberately is not. */}
       {query ? <input type="hidden" name="q" value={query} readOnly /> : null}
@@ -401,8 +387,8 @@ function FacetForm({filters, searchParams, rate, activeSort, sortRef, idPrefix})
                 option.value,
               );
               const label =
-                group.param === 'price' && rate.currencyCode !== 'INR'
-                  ? priceLabelFor(option, rate.currencyCode)
+                group.param === 'price' && rates.currencyCode !== 'INR'
+                  ? priceLabelFor(option, rates.currencyCode)
                   : option.label;
 
               return (
@@ -438,7 +424,8 @@ function FacetForm({filters, searchParams, rate, activeSort, sortRef, idPrefix})
  * @param {string} currencyCode
  */
 function priceLabelFor(option, currencyCode) {
-  if (option.min === 0) return `Under ${formatAmount(option.max, currencyCode)}`;
+  if (option.min === 0)
+    return `Under ${formatAmount(option.max, currencyCode)}`;
   if (!Number.isFinite(option.max)) {
     return `Above ${formatAmount(option.min, currencyCode)}`;
   }

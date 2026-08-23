@@ -1,15 +1,7 @@
 import {useLoaderData, data} from 'react-router';
 import {CartForm} from '@shopify/hydrogen';
 import {CartMain} from '~/components/CartMain';
-import {isDemoMode} from '~/lib/demo/mode';
-import {
-  getDemoCart,
-  demoAddLines,
-  demoUpdateLines,
-  demoRemoveLines,
-  demoUpdateAttributes,
-  demoUpdateBuyerIdentity,
-} from '~/lib/demo/cart.server';
+import {getMetalRates} from '~/lib/metal-rates.server';
 
 /**
  * @type {Route.MetaFunction}
@@ -27,7 +19,7 @@ export const headers = ({actionHeaders}) => actionHeaders;
  * @param {Route.ActionArgs}
  */
 export async function action({request, context}) {
-  const {cart, env, session} = context;
+  const {cart} = context;
 
   const formData = await request.formData();
 
@@ -39,44 +31,6 @@ export async function action({request, context}) {
 
   let status = 200;
   let result;
-
-  // DEMO: mutate the session bag instead of Shopify's Cart API. Same action
-  // names, same returned shape, so CartForm callers are unchanged.
-  if (isDemoMode(env)) {
-    switch (action) {
-      case CartForm.ACTIONS.LinesAdd:
-        result = {cart: demoAddLines(session, inputs.lines)};
-        break;
-      case CartForm.ACTIONS.LinesUpdate:
-        result = {cart: demoUpdateLines(session, inputs.lines)};
-        break;
-      case CartForm.ACTIONS.LinesRemove:
-        result = {cart: demoRemoveLines(session, inputs.lineIds)};
-        break;
-      case CartForm.ACTIONS.AttributesUpdateInput:
-        result = {cart: demoUpdateAttributes(session, inputs.attributes)};
-        break;
-      case CartForm.ACTIONS.BuyerIdentityUpdate:
-        result = {cart: demoUpdateBuyerIdentity(session, inputs.buyerIdentity)};
-        break;
-      default:
-        // Discounts and gift cards are storefront features the demo bag does
-        // not model; return the bag unchanged rather than erroring.
-        result = {cart: getDemoCart(session)};
-    }
-
-    const redirectTo = formData.get('redirectTo') ?? null;
-    const headers = new Headers();
-    if (typeof redirectTo === 'string') {
-      status = 303;
-      headers.set('Location', redirectTo);
-    }
-
-    return data(
-      {cart: result.cart, errors: [], warnings: [], analytics: {cartId: result.cart.id}},
-      {status, headers},
-    );
-  }
 
   switch (action) {
     case CartForm.ACTIONS.LinesAdd:
@@ -150,14 +104,18 @@ export async function action({request, context}) {
  * @param {Route.LoaderArgs}
  */
 export async function loader({context}) {
-  const {cart, env, session} = context;
-  if (isDemoMode(env)) return getDemoCart(session);
-  return await cart.get();
+  const {cart, storefront} = context;
+
+  return {
+    cart: await cart.get(),
+    // The bag prices its own lines, so it needs the day's rates too.
+    rates: await getMetalRates(storefront),
+  };
 }
 
 export default function Cart() {
   /** @type {LoaderReturnData} */
-  const cart = useLoaderData();
+  const {cart, rates} = useLoaderData();
 
   // The bag is normally a drawer; this route is the full-page view it falls
   // back to without JavaScript, and the target of a direct /cart link.
@@ -166,7 +124,7 @@ export default function Cart() {
       <h1 className="t-display-l" style={{marginBottom: 20}}>
         Your bag
       </h1>
-      <CartMain layout="page" cart={cart} />
+      <CartMain layout="page" cart={cart} rates={rates} />
     </div>
   );
 }

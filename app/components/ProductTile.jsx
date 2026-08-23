@@ -38,7 +38,13 @@ export function ProductTile({product, metrics, deliveryDate, loading}) {
             variant="quickadd"
             formClassName="tile__quickadd"
             onClick={() => open('cart')}
-            lines={[{merchandiseId: variant.id, quantity: 1, selectedVariant: variant}]}
+            lines={[
+              {
+                merchandiseId: variant.id,
+                quantity: 1,
+                selectedVariant: variant,
+              },
+            ]}
           >
             Add to bag
           </AddToCartButton>
@@ -71,8 +77,8 @@ export function ProductTile({product, metrics, deliveryDate, loading}) {
 
         {breakdown ? (
           <div className="tile__making">
-            incl. {formatAmount(breakdown.making, breakdown.currencyCode)} making
-            · GST included
+            incl. {formatAmount(breakdown.making, breakdown.currencyCode)}{' '}
+            making
           </div>
         ) : null}
 

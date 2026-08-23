@@ -3,35 +3,20 @@ import {formatGrams} from '~/lib/money';
 /**
  * The spec table.
  *
- * Purity, weight and hallmark are the three facts that decide a silver
- * purchase, so they lead. Rows with no value are dropped rather than shown
- * empty — a blank hallmark row reads as a missing hallmark.
+ * The metal and its weight, stated plainly — the two facts the price is
+ * calculated from. Rows with no value are dropped rather than shown empty:
+ * the shop enters these per product, and a blank row reads as a missing fact.
  *
  * @param {{metrics: any, compact?: boolean, className?: string}} props
  */
 export function SpecTable({metrics, compact = false, className = ''}) {
   if (!metrics) return null;
 
-  const weight = metrics.weightGrams
-    ? compact
-      ? formatGrams(metrics.weightGrams)
-      : `${formatGrams(metrics.weightGrams)} (± ${metrics.tolerance} g)`
-    : null;
+  const weight = metrics.weightGrams ? formatGrams(metrics.weightGrams) : null;
 
   const rows = [
-    {label: 'Purity', value: metrics.purity},
-    {label: compact ? 'Weight' : 'Nett weight', value: weight},
-    compact ? null : {label: 'Dimensions', value: metrics.dimensions},
-    compact ? null : {label: 'Finish', value: metrics.finishNote},
-    {
-      label: 'Hallmark',
-      value: metrics.huid
-        ? compact
-          ? `BIS · ${metrics.huid}`
-          : `BIS · HUID ${metrics.huid}`
-        : null,
-    },
-    compact ? null : {label: 'Made at', value: metrics.madeAt},
+    {label: 'Metal', value: metrics.metalLabel},
+    {label: compact ? 'Weight' : 'Metal weight', value: weight},
   ].filter((row) => row && row.value);
 
   if (!rows.length) return null;
