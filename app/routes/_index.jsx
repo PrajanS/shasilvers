@@ -6,12 +6,10 @@ import {ProductTile} from '~/components/ProductTile';
 import {TrustRow} from '~/components/TrustRow';
 import {MakerBand} from '~/components/MakerBand';
 import {FEATURED_PRODUCTS_QUERY} from '~/lib/product-queries';
-import {isDemoMode} from '~/lib/demo/mode';
-import {queryDemoProducts} from '~/lib/demo/catalogue';
 import {getProductMetrics} from '~/lib/pricing';
-import {getSilverRate} from '~/lib/silver-rate.server';
+import {getMetalRates} from '~/lib/metal-rates.server';
 import {getDeliveryEstimate} from '~/lib/delivery';
-import {CATEGORIES} from '~/lib/shop';
+import {useCollections, useCollectionPath} from '~/lib/collections';
 
 /** @type {Route.MetaFunction} */
 export const meta = () => {
@@ -32,23 +30,18 @@ export const meta = () => {
  * @param {Route.LoaderArgs} args
  */
 export async function loader({context}) {
-  const {storefront, env} = context;
-  const rate = getSilverRate();
+  const {storefront} = context;
+  const rates = await getMetalRates(storefront);
   const delivery = getDeliveryEstimate();
 
-  // DEMO: serve the Sha Silvers catalogue when no store is connected.
-  const products = isDemoMode(env)
-    ? queryDemoProducts({first: 8, sortKey: 'BEST_SELLING'})
-    : (
-        await storefront.query(FEATURED_PRODUCTS_QUERY, {
-          variables: {first: 8},
-          cache: storefront.CacheShort(),
-        })
-      ).products;
+  const {products} = await storefront.query(FEATURED_PRODUCTS_QUERY, {
+    variables: {first: 8},
+    cache: storefront.CacheShort(),
+  });
 
   const items = (products?.nodes ?? []).map((product) => ({
     product,
-    metrics: getProductMetrics({product, ratePerGram: rate.ratePerGram}),
+    metrics: getProductMetrics({product, rates}),
   }));
 
   return {items, delivery};
@@ -57,6 +50,8 @@ export async function loader({context}) {
 export default function Home() {
   /** @type {LoaderReturnData} */
   const {items, delivery} = useLoaderData();
+  const featured = useCollectionPath('pooja-articles', 'pooja');
+  const giftPath = useCollectionPath('gifting');
 
   return (
     <>
@@ -67,15 +62,11 @@ export default function Home() {
         <div className="section__head">
           <h2 className="t-display-m">Ready to despatch</h2>
           <div className="section__filters">
-            <Link to="/collections/pooja-articles">All</Link>
-            <Link to="/collections/pooja-articles?price=under-10000">
-              Under ₹ 10,000
-            </Link>
-            <Link to="/collections/pooja-articles?weight=under-100">
-              Under 100 g
-            </Link>
-            <Link to="/collections/gifting">Gift-ready</Link>
-            <Link className="link-inline" to="/collections/pooja-articles">
+            <Link to={featured}>All</Link>
+            <Link to={`${featured}?price=under-10000`}>Under ₹ 10,000</Link>
+            <Link to={`${featured}?weight=under-100`}>Under 100 g</Link>
+            <Link to={giftPath}>Gift-ready</Link>
+            <Link className="link-inline" to={featured}>
               View all →
             </Link>
           </div>
@@ -95,8 +86,8 @@ export default function Home() {
           </div>
         ) : (
           <p className="empty-state">
-            No articles are published yet. Add products to your Shopify catalogue
-            and they will appear here.
+            No articles are published yet. Add products to your Shopify
+            catalogue and they will appear here.
           </p>
         )}
       </section>
@@ -111,6 +102,12 @@ export default function Home() {
 }
 
 function Hero() {
+  // Editorial links name the collection they mean; the handle is the shop's
+  // to rename, so each resolves against the live list.
+  const poojaPath = useCollectionPath('pooja-articles', 'pooja');
+  const diningPath = useCollectionPath('dining-and-thali', 'dining-thali');
+  const bulkPath = useCollectionPath('bulk-and-corporate', 'bulk-corporate');
+
   return (
     <section className="hero">
       <div className="hero__main">
@@ -124,10 +121,10 @@ function Hero() {
             charge at checkout.
           </p>
           <div className="hero__actions">
-            <Button to="/collections/pooja-articles" variant="primary">
+            <Button to={poojaPath} variant="primary">
               Shop pooja sets
             </Button>
-            <Button to="/collections/dining-thali" variant="secondary">
+            <Button to={diningPath} variant="secondary">
               All silverware
             </Button>
           </div>
@@ -149,7 +146,7 @@ function Hero() {
           {
             title: 'Bulk & corporate gifting',
             detail: '25 pieces and above, GST invoice.',
-            to: '/collections/bulk-corporate',
+            to: bulkPath,
           },
           {
             title: 'Exchange old silver',
@@ -173,17 +170,25 @@ function Hero() {
 }
 
 function CategoryStrip() {
+  const collections = useCollections();
+
+  if (!collections.length) return null;
+
   return (
     <nav className="category-strip" aria-label="Shop by category">
-      {CATEGORIES.map((category) => (
+      {collections.map((collection) => (
         <Link
           className="category-strip__item"
-          key={category.handle}
-          to={`/collections/${category.handle}`}
+          key={collection.id}
+          to={`/collections/${collection.handle}`}
           prefetch="intent"
         >
-          <MediaWell note="1:1" sizes="(min-width: 901px) 12vw, 25vw" />
-          <span>{category.short}</span>
+          <MediaWell
+            data={collection.image}
+            note={`1:1 · ${collection.title}`}
+            sizes="(min-width: 901px) 12vw, 25vw"
+          />
+          <span>{collection.title}</span>
         </Link>
       ))}
     </nav>

@@ -11,15 +11,14 @@ Built on Hydrogen `2026.4.x` (React Router 7, Vite, Oxygen).
 
 ```bash
 npm install
-cp .env.example .env      # then edit SESSION_SECRET
+cp .env.example .env      # then fill in the store credentials
 npm run dev               # http://localhost:3000
 ```
 
-With no store credentials set, Hydrogen uses Shopify's public **mock.shop**
-catalogue, so the app boots with zero setup. Its products are Shopify's demo
-apparel priced in USD — the layout, pricing model and checkout flow are all
-real, but the articles are not silverware. Point it at a real store with
-`npx shopify hydrogen link` (see `.env.example`).
+Every product, collection, cart and checkout comes from the Storefront API —
+there is no offline catalogue, so a linked store is required to boot. Fill in
+`.env` by hand from Settings → Apps → Headless in the Shopify admin, or let
+`npx shopify hydrogen link` write it for you (see `.env.example`).
 
 ### Node version
 
@@ -51,28 +50,71 @@ component inlines a hex value.
 
 ## The domain layer
 
-Silverware carries facts Shopify has no native field for. They live in the
-`sha` metafield namespace and are read in
+**The price of an article is calculated, not looked up:**
+
+    price = today's rate for its metal × its nett weight + making charge
+
+No tax is added — the calculated figure is the figure. The facts it needs live
+in the `sha` metafield namespace on the product (or on the variant, where a
+size changes the number) and are read in
 [app/lib/pricing.js](app/lib/pricing.js):
 
-| Metafield (`sha` namespace) | Used for |
-| --- | --- |
-| `nett_weight_g` | Weight on the tile, spec table, metal line (also readable per variant) |
-| `making_charge` | The making line in the breakdown (also per variant) |
-| `weight_tolerance_g` | `218 g (± 3 g)` |
-| `purity`, `huid`, `dimensions`, `finish_note`, `made_at`, `article_code` | Spec table |
+| Product metafield (`sha`) | Type | Used for |
+| --- | --- | --- |
+| `metal` | single line | **Which rate the price is struck at**, and the Metal row |
+| `nett_weight_g` | integer or decimal | **Multiplied by the rate.** Also the weight on the tile and spec table |
+| `making_charge` | decimal | **Added on top.** Absent means none |
+| `weight_tolerance_g` | decimal | `218 g (± 3 g)` |
+| `purity`, `huid`, `dimensions`, `finish_note`, `made_at`, `article_code` | single line | Spec table |
 
-**Every one is optional.** Where a metafield is missing, weight is derived
-from the price at a 10% making assumption, so the layout still renders real,
-self-consistent numbers. Two rules hold either way: the total always equals
-the price Shopify charges, and the lines always sum to the total.
+Name, description and images are Shopify's own fields — nothing here
+duplicates them.
 
-Today's silver rate is a single module,
-[app/lib/silver-rate.server.js](app/lib/silver-rate.server.js), currently
-returning a constant ₹ 94.20/g. It is resolved once in the root loader and
-passed down, so the rate bar, tiles, product page and bag can never disagree —
-and server and client markup stay identical through hydration. Replace the
-constant with the real feed and every price breakdown follows.
+**Nothing is estimated.** Calculating a price needs three facts together: the
+metal, the weight, and that metal's rate for the day. Missing any one, the
+article falls back to Shopify's own price field and renders without a
+breakdown, rather than being priced against a number nobody published.
+
+### Shopify's price field, and what checkout charges
+
+The storefront quotes the calculated price. **Shopify's checkout charges the
+variant's price field** — that is the one thing on this site the storefront
+does not control. The two must therefore be kept in step: when the rate moves,
+the prices in Shopify have to move with it, or a buyer will be charged
+something other than the figure they were shown.
+
+The code does not hide the gap. `getProductMetrics` returns `shopifyPrice`
+alongside the calculated one and `priceMatchesShopify`, which is `true`,
+`false`, or `null` when there is nothing to compare — enough to build a
+mismatch warning or an admin report on. `cartTotals` reports the same thing
+for a whole bag through `allCalculated`.
+
+The bag is priced by the same formula as the product page
+([app/lib/cart-totals.js](app/lib/cart-totals.js)), line by line, so the two
+can never quote different figures for the same article.
+
+### Metal rates
+
+Rates are per metal, per day, and the shop publishes them itself — as **shop**
+metafields in the same `sha` namespace, under Settings → Custom data → Shop.
+[app/lib/metal-rates.server.js](app/lib/metal-rates.server.js) reads them:
+
+| Shop metafield (`sha`) | Type | Example |
+| --- | --- | --- |
+| `metal_rates` | json | `{"silver": {"our": 91.70, "market": 94.20}, "gold": {"our": 7250, "market": 7310}}` |
+| `rate_silver`, `rate_gold` | decimal | `91.70` — one key per metal, instead of the json table |
+| `market_silver`, `market_gold` | decimal | `94.20` — the published rate, for the comparison |
+| `rate_updated_at` | single line | `9:00 AM` |
+| `rate_currency` | single line | `INR` |
+
+The json field is the one that scales: a metal the shop starts selling appears
+by adding a key, with no code change. A bare number (`{"brass": 0.85}`) is
+accepted as our rate with no market comparison. Where both are set for the
+same metal, the per-metal key wins.
+
+Rates are resolved on the server and cached ten minutes, so a morning revision
+reaches the storefront the same morning without a deploy, and the rate strip,
+tiles, product page and bag can never quote different figures.
 
 The same applies to the delivery promise
 ([app/lib/delivery.js](app/lib/delivery.js)) and the pincode → city lookup
@@ -83,9 +125,9 @@ falls back to editable city/state fields for unknown pincodes. Each carries a
 ### Currency
 
 Money is formatted with the currency code the Storefront API actually returns,
-using the design's spacing and Indian digit grouping — `₹ 24,900` against a
-real INR store, `$ 24,900` against mock.shop. The storefront never claims
-rupees for prices that are not.
+using the design's spacing and Indian digit grouping — `₹ 24,900` from an INR
+store, `$ 24,900` from a USD one. The storefront never claims rupees for
+prices that are not.
 
 ## Filters are URL state
 
@@ -97,11 +139,15 @@ because weight is a metafield rather than a native Shopify filter. Filters
 therefore apply to the pages loaded so far; the count says so explicitly
 rather than implying a total it has not verified.
 
-The category nav is a fixed list of eight
-([app/lib/shop.js](app/lib/shop.js)). If a store has no collection for one of
-those handles yet, the listing falls back to the full catalogue under the
-category's title rather than dead-ending a permanently visible nav link.
-Unknown handles still 404.
+The category nav is not a list in the source: it is whatever collections exist
+in Shopify. The root loader resolves them once
+([app/lib/collections.js](app/lib/collections.js)), and the header, the mobile
+menu, the footer, the home strip and the search page all read that one list —
+add a collection in the admin and it appears in every one of them.
+
+A listing shows exactly what Shopify has in that collection. There is no fall
+back to the full catalogue: a product appears on a category page only if it
+was put in that collection, and a handle the store does not have is a 404.
 
 ## Checkout: what is real and what is not
 
@@ -153,7 +199,7 @@ design drew at 30×32.
   `/products/:handle`, `/cart`, `/checkout`, `/order-confirmed`, `/search` —
   all 200, no error boundary in the markup.
 - Add to bag through the real cart action → line, stepper, remove, subtotal,
-  shipping, GST and total all render.
+  shipping and total all render, each priced by the formula.
 - `POST /checkout` with a 4-digit pincode → renders "Pincode must be 6 digits".
 - `POST /checkout` with valid details → `302` to a live Shopify checkout URL,
   with the buyer-identity update succeeding (no fallback logged).

@@ -13,9 +13,24 @@ export const FILTER_GROUPS = [
     label: 'Price',
     options: [
       {value: 'under-10000', label: 'Under ₹ 10,000', min: 0, max: 10000},
-      {value: '10000-25000', label: '₹ 10,000 – 25,000', min: 10000, max: 25000},
-      {value: '25000-50000', label: '₹ 25,000 – 50,000', min: 25000, max: 50000},
-      {value: 'above-50000', label: 'Above ₹ 50,000', min: 50000, max: Infinity},
+      {
+        value: '10000-25000',
+        label: '₹ 10,000 – 25,000',
+        min: 10000,
+        max: 25000,
+      },
+      {
+        value: '25000-50000',
+        label: '₹ 25,000 – 50,000',
+        min: 25000,
+        max: 50000,
+      },
+      {
+        value: 'above-50000',
+        label: 'Above ₹ 50,000',
+        min: 50000,
+        max: Infinity,
+      },
     ],
   },
   {
@@ -48,10 +63,25 @@ export const FILTER_GROUPS = [
 ];
 
 export const SORT_OPTIONS = [
-  {value: 'price-asc', label: 'Price, low to high', sortKey: 'PRICE', reverse: false},
-  {value: 'price-desc', label: 'Price, high to low', sortKey: 'PRICE', reverse: true},
+  {
+    value: 'price-asc',
+    label: 'Price, low to high',
+    sortKey: 'PRICE',
+    reverse: false,
+  },
+  {
+    value: 'price-desc',
+    label: 'Price, high to low',
+    sortKey: 'PRICE',
+    reverse: true,
+  },
   {value: 'newest', label: 'Newest first', sortKey: 'CREATED', reverse: true},
-  {value: 'popular', label: 'Most popular', sortKey: 'BEST_SELLING', reverse: false},
+  {
+    value: 'popular',
+    label: 'Most popular',
+    sortKey: 'BEST_SELLING',
+    reverse: false,
+  },
 ];
 
 export const DEFAULT_SORT = 'price-asc';

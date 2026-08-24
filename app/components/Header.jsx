@@ -4,8 +4,10 @@ import {useAnalytics, useOptimisticCart} from '@shopify/hydrogen';
 import {useAside} from '~/components/Aside';
 import {BagIcon, SearchIcon} from '~/components/Icons';
 import {ThemeToggle} from '~/components/ThemeToggle';
-import {CATEGORIES, SHOP} from '~/lib/shop';
-import {formatMoney} from '~/lib/money';
+import {SHOP} from '~/lib/shop';
+import {useCollections} from '~/lib/collections';
+import {formatAmount} from '~/lib/money';
+import {cartTotals} from '~/lib/cart-totals';
 
 /**
  * Site header.
@@ -15,9 +17,9 @@ import {formatMoney} from '~/lib/money';
  * directly beneath it and is also always visible, so any category is one
  * click from any page.
  *
- * @param {{cart: Promise<any>|any}} props
+ * @param {{cart: Promise<any>|any, rates?: any}} props
  */
-export function Header({cart}) {
+export function Header({cart, rates}) {
   const {open} = useAside();
   const location = useLocation();
   const currentSearch = new URLSearchParams(location.search).get('q') ?? '';
@@ -54,7 +56,7 @@ export function Header({cart}) {
               Account
             </NavLink>
             <ThemeToggle />
-            <BagButton cart={cart} onClick={() => open('cart')} />
+            <BagButton cart={cart} rates={rates} onClick={() => open('cart')} />
           </div>
         </div>
 
@@ -89,22 +91,26 @@ function SearchField({defaultValue = '', className = ''}) {
   );
 }
 
-/** The eight categories, always visible. */
+/** The store's collections, always visible. */
 function CategoryNav() {
   const params = useParams();
+  const collections = useCollections();
+
+  if (!collections.length) return null;
 
   return (
     <nav className="category-nav" aria-label="Categories">
       <div className="category-nav__inner">
-        {CATEGORIES.map((category) => (
+        {collections.map((collection) => (
           <Link
-            key={category.handle}
-            to={`/collections/${category.handle}`}
+            key={collection.id}
+            to={`/collections/${collection.handle}`}
             prefetch="intent"
-            className={category.muted ? 'is-muted' : undefined}
-            aria-current={params.handle === category.handle ? 'page' : undefined}
+            aria-current={
+              params.handle === collection.handle ? 'page' : undefined
+            }
           >
-            {category.label}
+            {collection.title}
           </Link>
         ))}
       </div>
@@ -117,22 +123,24 @@ function CategoryNav() {
  * total as the thing worth glancing at.
  * @param {{cart: any, onClick: () => void}} props
  */
-function BagButton({cart, onClick}) {
+function BagButton({cart, rates, onClick}) {
   return (
     <Suspense fallback={<BagButtonInner onClick={onClick} cart={null} />}>
       <Await resolve={cart}>
-        {(resolved) => <BagButtonInner cart={resolved} onClick={onClick} />}
+        {(resolved) => (
+          <BagButtonInner cart={resolved} rates={rates} onClick={onClick} />
+        )}
       </Await>
     </Suspense>
   );
 }
 
-/** @param {{cart: any, onClick: () => void}} props */
-function BagButtonInner({cart, onClick}) {
+/** @param {{cart: any, rates?: any, onClick: () => void}} props */
+function BagButtonInner({cart, rates, onClick}) {
   const optimisticCart = useOptimisticCart(cart);
   const {publish, shop} = useAnalytics();
   const count = optimisticCart?.totalQuantity ?? 0;
-  const total = optimisticCart?.cost?.subtotalAmount;
+  const totals = cartTotals(optimisticCart, rates);
 
   return (
     <button
@@ -146,28 +154,35 @@ function BagButtonInner({cart, onClick}) {
       <BagIcon />
       <span>
         Bag
-        {count > 0 ? ` · ${total ? formatMoney(total) : count}` : ''}
+        {count > 0
+          ? ` · ${
+              totals
+                ? formatAmount(totals.subtotal, totals.currencyCode)
+                : count
+            }`
+          : ''}
       </span>
     </button>
   );
 }
 
 /**
- * The mobile menu contents — the same eight categories plus the account links
+ * The mobile menu contents — the same collections plus the account links
  * that the header hides at narrow widths.
  */
 export function HeaderMenu() {
   const {close} = useAside();
+  const collections = useCollections();
 
   return (
     <nav className="mobile-menu" aria-label="Menu">
-      {CATEGORIES.map((category) => (
+      {collections.map((collection) => (
         <Link
-          key={category.handle}
-          to={`/collections/${category.handle}`}
+          key={collection.id}
+          to={`/collections/${collection.handle}`}
           onClick={close}
         >
-          {category.label}
+          {collection.title}
         </Link>
       ))}
       <Link to="/account/orders" onClick={close}>

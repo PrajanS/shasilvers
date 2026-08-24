@@ -28,13 +28,8 @@ import {formatAmount, formatGrams} from '~/lib/money';
 import {cartTotals, cartWeightGrams} from '~/lib/cart-totals';
 import {isValidPincode, lookupPincode} from '~/lib/pincode';
 import {getDeliveryEstimate} from '~/lib/delivery';
+import {getMetalRates} from '~/lib/metal-rates.server';
 import {SHOP} from '~/lib/shop';
-import {isDemoMode} from '~/lib/demo/mode';
-import {
-  getDemoCart,
-  demoUpdateBuyerIdentity,
-  demoClearCart,
-} from '~/lib/demo/cart.server';
 
 /** @type {Route.MetaFunction} */
 export const meta = () => [{title: 'Secure checkout — Sha Silvers'}];
@@ -47,13 +42,11 @@ const PAYMENT_METHODS = [
 
 /** @param {Route.LoaderArgs} args */
 export async function loader({context}) {
-  const {env, session} = context;
-  const demo = isDemoMode(env);
-  const cart = demo ? getDemoCart(session) : await context.cart.get();
+  const cart = await context.cart.get();
 
   return {
     cart,
-    demo,
+    rates: await getMetalRates(context.storefront),
     delivery: getDeliveryEstimate(),
   };
 }
@@ -96,33 +89,6 @@ export async function action({request, context}) {
 
   if (Object.keys(errors).length) {
     return {errors, values};
-  }
-
-  // DEMO: there is no hosted checkout for demo articles, so the order
-  // completes here and lands on the confirmation screen. The reference is
-  // marked `SHA-D…` so a demo order is never mistaken for a real one.
-  if (isDemoMode(context.env)) {
-    const {session} = context;
-    const demoCart = getDemoCart(session);
-    if (!demoCart.totalQuantity) {
-      return {errors: {form: 'Your bag is empty.'}, values};
-    }
-
-    demoUpdateBuyerIdentity(session, {
-      email: values.email,
-      phone: values.phone,
-      address: {
-        name: values.name,
-        address1: values.address1,
-        city,
-        province: state,
-        zip: values.pincode,
-      },
-    });
-
-    const reference = `SHA-D${String(Date.now()).slice(-5)}`;
-    demoClearCart(session);
-    return redirect(`/order-confirmed?order=${reference}&demo=1`);
   }
 
   const cart = await context.cart.get();
@@ -176,7 +142,7 @@ export async function action({request, context}) {
 
 export default function Checkout() {
   /** @type {LoaderReturnData} */
-  const {cart, demo, delivery} = useLoaderData();
+  const {cart, rates, delivery} = useLoaderData();
   const actionData = useActionData();
   const errors = actionData?.errors ?? {};
 
@@ -194,8 +160,8 @@ export default function Checkout() {
     // Re-runs whenever a new action response arrives.
   }, [actionData]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const totals = cartTotals(cart);
-  const grams = cartWeightGrams(cart);
+  const totals = cartTotals(cart, rates);
+  const grams = cartWeightGrams(cart, rates);
   const lines = cart?.lines?.nodes ?? [];
 
   if (!totals || !lines.length) {
@@ -214,7 +180,7 @@ export default function Checkout() {
     );
   }
 
-  const {currencyCode, subtotal, shipping, gst, total, freeShipping} = totals;
+  const {currencyCode, subtotal, shipping, total, freeShipping} = totals;
 
   return (
     <div className="checkout">
@@ -348,7 +314,11 @@ export default function Checkout() {
                     value={`${resolvedArea.city}, ${resolvedArea.state} — auto-filled`}
                   />
                   <input type="hidden" name="city" value={resolvedArea.city} />
-                  <input type="hidden" name="state" value={resolvedArea.state} />
+                  <input
+                    type="hidden"
+                    name="state"
+                    value={resolvedArea.state}
+                  />
                 </>
               ) : (
                 <>
@@ -408,20 +378,9 @@ export default function Checkout() {
             </div>
 
             <p className="checkout__notice" style={{marginTop: 14}}>
-              {demo ? (
-                <>
-                  <strong>Demo catalogue — no payment is taken.</strong>{' '}
-                  Continuing completes the order so the confirmation screen can
-                  be reviewed. Connect a Shopify store and this step hands off
-                  to their secure checkout instead.
-                </>
-              ) : (
-                <>
-                  <strong>Payment is taken on Shopify’s secure checkout.</strong>{' '}
-                  Continuing carries your contact details and address across, so
-                  you only confirm and pay. Your method choice is remembered.
-                </>
-              )}
+              <strong>Payment is taken on Shopify’s secure checkout.</strong>{' '}
+              Continuing carries your contact details and address across, so you
+              only confirm and pay. Your method choice is remembered.
             </p>
           </section>
 
@@ -479,10 +438,6 @@ export default function Checkout() {
                 {freeShipping ? 'Free' : formatAmount(shipping, currencyCode)}
               </dd>
             </div>
-            <div className="cart-summary__row">
-              <dt>GST 3% (included)</dt>
-              <dd>{formatAmount(gst, currencyCode)}</dd>
-            </div>
             <hr className="hairline" />
             <div className="cart-summary__row cart-summary__row--total">
               <dt>Total</dt>
@@ -491,13 +446,12 @@ export default function Checkout() {
           </dl>
 
           <button type="submit" className="btn btn--primary btn--block">
-            {demo ? 'Place order' : 'Continue to pay'}{' '}
-            {formatAmount(total, currencyCode)}
+            Continue to pay {formatAmount(total, currencyCode)}
           </button>
 
           <p className="checkout__handoff">
-            Delivery by {delivery.long}. Hallmark certificate and GST invoice
-            are included in the parcel. 7-day return, lifetime buyback.
+            Delivery by {delivery.long}. Hallmark certificate and invoice are
+            included in the parcel. 7-day return, lifetime buyback.
           </p>
         </aside>
       </Form>

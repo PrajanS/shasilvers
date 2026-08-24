@@ -1,26 +1,28 @@
 /**
- * Silver pricing model.
+ * Pricing model.
  *
- * A silver buyer asks three questions before clicking: what does it weigh,
- * what am I paying for the metal, and what am I paying you to make it. The
- * design answers all three on the tile and again on the product page, so the
- * breakdown has to be derivable for every product — including products whose
- * metafields have not been filled in yet.
+ * The price of an article is calculated, not looked up:
  *
- * Two rules keep it honest:
- *   1. The total always equals the real Storefront price. We never invent a
- *      price; we only decompose the one Shopify gave us.
- *   2. The lines always sum to the total. Making charge absorbs the rounding.
+ *     price = today's rate for its metal × its nett weight + making charge
  *
- * Where the shop has entered metafields (namespace `sha`) we use them. Where
- * it has not, weight is derived from the price at a 10% making assumption so
- * the layout still renders real, self-consistent numbers.
+ * Everything the formula needs comes from Shopify. The metal, the weight and
+ * the making charge are metafields on the product (or on the variant, where a
+ * size changes the number); the rate is a shop metafield, one per metal,
+ * revised each morning (see `~/lib/metal-rates.server`). No tax is added: the
+ * calculated figure is the figure.
+ *
+ * Two consequences worth being clear about:
+ *
+ *   1. Shopify's own price field is not what the storefront shows. It is still
+ *      what Shopify's checkout charges, so the two must be kept in step — see
+ *      `shopifyPrice` and `priceMatchesShopify` on the returned metrics, which
+ *      report the difference rather than hide it.
+ *   2. An article missing its metal, its weight, or a published rate for its
+ *      metal cannot be calculated. Rather than invent a number, those fall
+ *      back to Shopify's price and render without a breakdown.
  */
 
-import {GST_RATE} from '~/lib/shop';
-
-/** Assumed making charge as a fraction of metal value when not specified. */
-const DEFAULT_MAKING_RATIO = 0.1;
+import {normaliseMetal, metalLabel, rateFor} from '~/lib/metals';
 
 /**
  * Read a product metafield fetched via `metafields(identifiers: [...])`.
@@ -34,131 +36,200 @@ export function getMetafield(node, key) {
 }
 
 /**
+ * The key each fact may have been defined under.
+ *
+ * The shop names its own metafields, and Shopify derives the key from the
+ * name — "metal weight" becomes `metal_weight`. Rather than insist on one
+ * spelling, each fact lists the keys it answers to, best first. The queries
+ * ask for all of them, in both the default `custom` namespace and `sha`.
+ */
+export const METAL_KEYS = ['metal_name', 'metal'];
+export const WEIGHT_KEYS = ['metal_weight', 'nett_weight_g'];
+export const MAKING_KEYS = ['making_charge'];
+
+/**
+ * The first of `keys` this node actually carries a value for.
  * @param {{metafields?: Array<{key?: string, value?: string}|null>|null}} node
- * @param {string} key
+ * @param {string[]} keys
+ * @returns {string|null}
+ */
+function readAny(node, keys) {
+  for (const key of keys) {
+    const value = getMetafield(node, key);
+    if (value !== null && value !== '') return value;
+  }
+  return null;
+}
+
+/**
+ * @param {{metafields?: Array<{key?: string, value?: string}|null>|null}} node
+ * @param {string[]} keys
  * @returns {number|null}
  */
-function getNumericMetafield(node, key) {
-  const raw = getMetafield(node, key);
-  if (raw === null || raw === '') return null;
+function readAnyNumber(node, keys) {
+  const raw = readAny(node, keys);
+  if (raw === null) return null;
   const n = Number(raw);
   return Number.isFinite(n) ? n : null;
 }
 
 /**
- * Decompose a GST-inclusive price into metal, making and tax.
+ * Calculate a price from metal, weight and making charge.
+ *
+ * Returns null when the article cannot be priced this way — no weight, or no
+ * published rate for its metal — so callers can fall back rather than render
+ * a total struck against a missing number.
  *
  * @param {object} args
- * @param {{amount?: string|number, currencyCode?: string}|null|undefined} args.price
- *   The variant price from the Storefront API. Treated as GST-inclusive.
- * @param {number} args.ratePerGram Today's silver rate.
- * @param {number|null} [args.weightGrams] Nett weight, when known.
- * @param {number|null} [args.makingCharge] Making charge, when known.
+ * @param {number|null} args.ratePerGram Today's rate for this article's metal.
+ * @param {number|null} [args.weightGrams] Nett weight, in grams.
+ * @param {number|null} [args.makingCharge] Making charge. Absent means none.
+ * @param {string|null} [args.metalName] The metal, for the caller to label with.
+ * @param {string} [args.currencyCode]
  * @returns {{
  *   total: number,
- *   base: number,
  *   metal: number,
  *   making: number,
- *   gst: number,
  *   weightGrams: number,
  *   ratePerGram: number,
+ *   metalName: string|null,
  *   currencyCode: string,
- *   weightIsEstimated: boolean,
  * }|null}
  */
 export function buildPriceBreakdown({
-  price,
   ratePerGram,
   weightGrams = null,
   makingCharge = null,
+  metalName = null,
+  currencyCode = 'INR',
 }) {
-  const total = Number(price?.amount);
-  if (!Number.isFinite(total) || total <= 0 || !ratePerGram) return null;
+  if (!(weightGrams > 0) || !(ratePerGram > 0)) return null;
 
-  const currencyCode = price?.currencyCode ?? 'INR';
-
-  // Prices are quoted GST-inclusive, so strip the tax back out first.
-  const base = total / (1 + GST_RATE);
-  const gst = total - base;
-
-  let metal;
-  let making;
-  let weightIsEstimated = false;
-
-  if (weightGrams && weightGrams > 0) {
-    // Metal value is what the weight is actually worth today. Making charge is
-    // whatever is left, clamped so the lines can never contradict the total.
-    metal = Math.min(weightGrams * ratePerGram, base);
-    making = base - metal;
-  } else {
-    // No weight on file: split the base at the default making ratio and infer
-    // the weight that implies. Flagged so the UI can soften the claim.
-    metal = base / (1 + DEFAULT_MAKING_RATIO);
-    making = base - metal;
-    weightGrams = metal / ratePerGram;
-    weightIsEstimated = true;
-  }
-
-  // An explicit making charge overrides the split, metal takes the remainder.
-  if (makingCharge !== null && makingCharge >= 0 && makingCharge <= base) {
-    making = makingCharge;
-    metal = base - making;
-  }
+  // What the metal in this article is worth at today's rate, plus what we
+  // charge to have turned it into the article. Nothing else is added.
+  const metal = ratePerGram * weightGrams;
+  const making = makingCharge !== null && makingCharge > 0 ? makingCharge : 0;
 
   return {
-    total,
-    base,
+    total: metal + making,
     metal,
     making,
-    gst,
     weightGrams,
     ratePerGram,
+    metalName,
     currencyCode,
-    weightIsEstimated,
   };
 }
 
 /**
- * Everything the tile, the spec table and the breakdown need for one product,
- * resolved from metafields with fallbacks. Call this once per product.
+ * Everything the tile, the spec table and the breakdown need for one product.
+ * Call this once per product.
  *
  * @param {object} args
  * @param {any} args.product Product or product-item fragment.
  * @param {any} [args.variant] Selected variant, when on a product page.
- * @param {number} args.ratePerGram
+ * @param {{list?: Array<any>, currencyCode?: string}} args.rates Today's rates.
  * @returns {object}
  */
-export function getProductMetrics({product, variant, ratePerGram}) {
-  const price = variant?.price ?? product?.priceRange?.minVariantPrice;
+export function getProductMetrics({product, variant, rates}) {
+  const shopifyPrice = variant?.price ?? product?.priceRange?.minVariantPrice;
 
   // Metafields may live on either the variant (per-size weight) or the product.
   const weightGrams =
-    getNumericMetafield(variant, 'nett_weight_g') ??
-    getNumericMetafield(product, 'nett_weight_g');
+    readAnyNumber(variant, WEIGHT_KEYS) ?? readAnyNumber(product, WEIGHT_KEYS);
 
   const makingCharge =
-    getNumericMetafield(variant, 'making_charge') ??
-    getNumericMetafield(product, 'making_charge');
+    readAnyNumber(variant, MAKING_KEYS) ?? readAnyNumber(product, MAKING_KEYS);
+
+  // What the article is made of, and what that metal costs today.
+  const metalName = normaliseMetal(
+    readAny(variant, METAL_KEYS) ?? readAny(product, METAL_KEYS),
+  );
+  const rate = rateFor(rates, metalName);
+
+  const currencyCode =
+    rates?.currencyCode ?? shopifyPrice?.currencyCode ?? 'INR';
 
   const breakdown = buildPriceBreakdown({
-    price,
-    ratePerGram,
+    ratePerGram: rate?.ratePerGram ?? null,
     weightGrams,
     makingCharge,
+    metalName,
+    currencyCode,
   });
+
+  // The calculated figure is the price the storefront quotes. Where it cannot
+  // be calculated, Shopify's own price stands in.
+  const price = breakdown
+    ? {amount: String(breakdown.total), currencyCode}
+    : shopifyPrice;
 
   return {
     price,
     breakdown,
-    weightGrams: breakdown?.weightGrams ?? null,
-    weightIsEstimated: breakdown?.weightIsEstimated ?? true,
-    tolerance: getNumericMetafield(product, 'weight_tolerance_g') ?? 3,
-    purity: getMetafield(product, 'purity') ?? '925 sterling silver',
-    huid: getMetafield(product, 'huid'),
-    dimensions: getMetafield(product, 'dimensions'),
-    finishNote: getMetafield(product, 'finish_note'),
-    madeAt:
-      getMetafield(product, 'made_at') ?? 'Sha Silvers workshop, Coimbatore',
-    articleCode: getMetafield(product, 'article_code') ?? variant?.sku ?? null,
+    shopifyPrice,
+    priceIsCalculated: Boolean(breakdown),
+    priceMatchesShopify: matchesShopify(breakdown, shopifyPrice),
+    metal: metalName,
+    metalLabel: metalLabel(metalName),
+    rate,
+    weightGrams: weightGrams ?? null,
   };
+}
+
+/**
+ * Per-line figures for the bag, calculated the same way as the product page
+ * so the two can never quote different numbers for the same article.
+ *
+ * @param {any} line A cart line.
+ * @param {{list?: Array<any>, currencyCode?: string}} rates
+ */
+export function getCartLineMetrics(line, rates) {
+  const variant = line?.merchandise;
+  const quantity = line?.quantity ?? 1;
+
+  const metrics = getProductMetrics({
+    product: variant?.product,
+    variant,
+    rates,
+  });
+
+  const unit = metrics.breakdown?.total ?? null;
+  const shopifyTotal = Number(line?.cost?.totalAmount?.amount);
+
+  return {
+    ...metrics,
+    quantity,
+    // The line total, calculated where the article can be, and Shopify's own
+    // where it cannot.
+    lineTotal:
+      unit !== null
+        ? unit * quantity
+        : Number.isFinite(shopifyTotal)
+          ? shopifyTotal
+          : null,
+    lineTotalIsCalculated: unit !== null,
+    currencyCode:
+      metrics.breakdown?.currencyCode ??
+      line?.cost?.totalAmount?.currencyCode ??
+      rates?.currencyCode ??
+      'INR',
+  };
+}
+
+/**
+ * Whether the calculated price agrees with the price Shopify would charge.
+ *
+ * Rounded to the rupee before comparing: the two are kept in step by hand, and
+ * a difference of a few paise is arithmetic, not a mistake worth reporting.
+ *
+ * @param {{total: number}|null} breakdown
+ * @param {{amount?: string|number}|null|undefined} shopifyPrice
+ * @returns {boolean|null} null when there is nothing to compare.
+ */
+function matchesShopify(breakdown, shopifyPrice) {
+  if (!breakdown) return null;
+  const theirs = Number(shopifyPrice?.amount);
+  if (!Number.isFinite(theirs) || theirs <= 0) return null;
+  return Math.round(theirs) === Math.round(breakdown.total);
 }

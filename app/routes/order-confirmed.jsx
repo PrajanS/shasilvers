@@ -59,7 +59,10 @@ export default function OrderConfirmed() {
           </div>
           <div className="tracker__labels">
             {STAGES.map((stage, index) => (
-              <span key={stage} className={index === 0 ? 'is-current' : undefined}>
+              <span
+                key={stage}
+                className={index === 0 ? 'is-current' : undefined}
+              >
                 {stage}
               </span>
             ))}

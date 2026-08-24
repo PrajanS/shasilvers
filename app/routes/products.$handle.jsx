@@ -1,5 +1,5 @@
-import {Suspense, useEffect, useState} from 'react';
-import {Await, useLoaderData, useNavigate, Link} from 'react-router';
+import {useEffect, useState} from 'react';
+import {useLoaderData, useNavigate, Link} from 'react-router';
 import {
   getSelectedProductOptions,
   Analytics,
@@ -13,24 +13,12 @@ import {redirectIfHandleIsLocalized} from '~/lib/redirect';
 import {MediaWell} from '~/components/MediaWell';
 import {PriceBreakdown} from '~/components/PriceBreakdown';
 import {SpecTable} from '~/components/SpecTable';
-import {Accordion} from '~/components/Accordion';
 import {AddToCartButton} from '~/components/AddToCartButton';
-import {ProductTile} from '~/components/ProductTile';
 import {Breadcrumbs} from '~/components/Breadcrumbs';
-import {MakerBand} from '~/components/MakerBand';
 import {useAside} from '~/components/Aside';
-import {RECOMMENDED_PRODUCTS_QUERY} from '~/lib/product-queries';
-import {isDemoMode} from '~/lib/demo/mode';
-import {
-  getDemoProduct,
-  getDemoProducts,
-  getDemoProductOptions,
-  getDemoOptionsField,
-  selectVariant,
-  toTile,
-} from '~/lib/demo/catalogue';
 import {getProductMetrics} from '~/lib/pricing';
-import {getSilverRate} from '~/lib/silver-rate.server';
+import {useCollectionPath} from '~/lib/collections';
+import {getMetalRates} from '~/lib/metal-rates.server';
 import {getDeliveryEstimate} from '~/lib/delivery';
 import {formatGrams, formatMoney} from '~/lib/money';
 
@@ -50,44 +38,15 @@ export const meta = ({data}) => {
 
 /** @param {Route.LoaderArgs} args */
 export async function loader(args) {
-  const deferredData = loadDeferredData(args);
-  const criticalData = await loadCriticalData(args);
-  return {...deferredData, ...criticalData};
+  return loadCriticalData(args);
 }
 
 /** @param {Route.LoaderArgs} args */
 async function loadCriticalData({context, params, request}) {
   const {handle} = params;
-  const {storefront, env} = context;
+  const {storefront} = context;
 
   if (!handle) throw new Error('Expected product handle to be defined');
-
-  // DEMO: resolve from the Sha Silvers catalogue, including which variant the
-  // current query string selects, so option chips behave as they would live.
-  if (isDemoMode(env)) {
-    const demoProduct = getDemoProduct(handle);
-    if (!demoProduct) throw new Response(null, {status: 404});
-
-    const selectedOptions = Object.fromEntries(
-      getSelectedProductOptions(request).map(({name, value}) => [name, value]),
-    );
-    const selectedVariant = selectVariant(demoProduct, selectedOptions);
-
-    return {
-      product: {
-        ...demoProduct,
-        // Fields Hydrogen's variant hooks expect to exist.
-        adjacentVariants: [],
-        encodedVariantExistence: null,
-        encodedVariantAvailability: null,
-        options: getDemoOptionsField(demoProduct),
-        selectedOrFirstAvailableVariant: selectedVariant,
-      },
-      demo: true,
-      rate: getSilverRate(),
-      delivery: getDeliveryEstimate(),
-    };
-  }
 
   const [{product}] = await Promise.all([
     storefront.query(PRODUCT_QUERY, {
@@ -101,45 +60,14 @@ async function loadCriticalData({context, params, request}) {
 
   return {
     product,
-    demo: false,
-    rate: getSilverRate(),
+    rates: await getMetalRates(storefront),
     delivery: getDeliveryEstimate(),
   };
 }
 
-/**
- * Recommendations sit below the fold, so they must never block the buy
- * controls — and must never take the page down if the store has none.
- * @param {Route.LoaderArgs} args
- */
-function loadDeferredData({context, params}) {
-  if (isDemoMode(context.env)) {
-    const current = getDemoProduct(params.handle);
-    return {
-      recommended: Promise.resolve(
-        getDemoProducts()
-          .filter(
-            (product) =>
-              product.category === current?.category &&
-              product.handle !== current?.handle,
-          )
-          .slice(0, 4)
-          .map((product) => toTile(product)),
-      ),
-    };
-  }
-
-  const recommended = context.storefront
-    .query(RECOMMENDED_PRODUCTS_QUERY, {variables: {handle: params.handle}})
-    .then((result) => result?.product?.collections?.nodes?.[0]?.products?.nodes ?? [])
-    .catch(() => []);
-
-  return {recommended};
-}
-
 export default function Product() {
   /** @type {LoaderReturnData} */
-  const {product, demo, rate, delivery, recommended} = useLoaderData();
+  const {product, rates} = useLoaderData();
 
   const selectedVariant = useOptimisticVariant(
     product.selectedOrFirstAvailableVariant,
@@ -148,19 +76,15 @@ export default function Product() {
 
   useSelectedOptionInUrlParam(selectedVariant.selectedOptions);
 
-  // Hooks above stay unconditional; only the option-list builder differs,
-  // and both builders return the same shape so the chips render identically.
-  const productOptions = demo
-    ? getDemoProductOptions(product, selectedVariant)
-    : getProductOptions({
-        ...product,
-        selectedOrFirstAvailableVariant: selectedVariant,
-      });
+  const productOptions = getProductOptions({
+    ...product,
+    selectedOrFirstAvailableVariant: selectedVariant,
+  });
 
   const metrics = getProductMetrics({
     product,
     variant: selectedVariant,
-    ratePerGram: rate.ratePerGram,
+    rates,
   });
 
   const [activeImage, setActiveImage] = useState(0);
@@ -189,83 +113,54 @@ export default function Product() {
       />
 
       <div className="pdp__grid">
-        {/* Only render the strip when there is genuinely more than one image
-            to choose between; five inert placeholders taught nothing. */}
-        {gallery.length > 1 ? (
-          <div className="pdp__thumbs">
-            {gallery.map((image, index) => (
-              <button
-                type="button"
-                key={image?.id ?? index}
-                className="pdp__thumb"
-                aria-current={activeImage === index ? 'true' : undefined}
-                aria-label={`View image ${index + 1} of ${gallery.length}`}
-                onClick={() => setActiveImage(index)}
-              >
-                <MediaWell data={image} note="1:1" sizes="96px" />
-              </button>
-            ))}
-          </div>
-        ) : null}
+        {/* Gallery and thumbs share one column, so the layout holds its
+            shape whether the product has five images, one, or none. */}
+        <div className="pdp__media">
+          <MediaWell
+            className="pdp__gallery"
+            data={gallery[activeImage] ?? gallery[0]}
+            note={product.title}
+            sizes="(min-width: 901px) 45vw, 100vw"
+            loading="eager"
+          />
 
-        <MediaWell
-          className="pdp__gallery"
-          data={gallery[activeImage] ?? gallery[0]}
-          note={'1:1 primary · thali centred on sand'}
-          sizes="(min-width: 1101px) 45vw, 100vw"
-          loading="eager"
-        />
+          {/* Only render the strip when there is genuinely more than one
+              image to choose between; inert placeholders taught nothing. */}
+          {gallery.length > 1 ? (
+            <div className="pdp__thumbs">
+              {gallery.map((image, index) => (
+                <button
+                  type="button"
+                  key={image?.id ?? index}
+                  className="pdp__thumb"
+                  aria-current={activeImage === index ? 'true' : undefined}
+                  aria-label={`View image ${index + 1} of ${gallery.length}`}
+                  onClick={() => setActiveImage(index)}
+                >
+                  <MediaWell data={image} note="" sizes="96px" />
+                </button>
+              ))}
+            </div>
+          ) : null}
+        </div>
 
         <div className="pdp__main">
-          <div className="pdp__eyebrow">
-            {product.productType || 'Silverware'} ·{' '}
-            {inStock ? 'ready to despatch' : 'made to order'}
-          </div>
-
           <h1 className="t-display-l pdp__title">{product.title}</h1>
 
-          {(metrics.articleCode || metrics.huid) && (
-            <div className="pdp__code">
-              {metrics.articleCode ? `Article ${metrics.articleCode}` : null}
-              {metrics.articleCode && metrics.huid ? ' · ' : null}
-              {metrics.huid ? `BIS HUID ${metrics.huid}` : null}
-            </div>
-          )}
-
           <div className="pdp__price-row">
-            <span className="t-price-lg">{formatMoney(selectedVariant?.price)}</span>
-            <span className="pdp__tax-note">GST included</span>
+            {Number(metrics.price?.amount) > 0 ? (
+              <span className="t-price-lg">{formatMoney(metrics.price)}</span>
+            ) : (
+              <span className="pdp__price-pending">Price on request</span>
+            )}
           </div>
 
           <PriceBreakdown
             breakdown={metrics.breakdown}
-            marketRate={rate.market}
+            marketRate={metrics.rate?.market}
             className="pdp__breakdown"
             explainMaking
           />
-
-          <ul className="pdp__assurances">
-            <li>
-              <span className="pdp__tick" aria-hidden="true">
-                ✓
-              </span>
-              {inStock
-                ? 'In stock · despatched in 2 working days'
-                : 'Made to order · 10–14 working days'}
-            </li>
-            <li>
-              <span className="pdp__tick" aria-hidden="true">
-                ✓
-              </span>
-              Delivery by <strong>{delivery.long}</strong>
-            </li>
-            <li>
-              <span className="pdp__tick" aria-hidden="true">
-                ✓
-              </span>
-              Free insured shipping · hallmark certificate in the parcel
-            </li>
-          </ul>
 
           <ProductOptions
             productOptions={productOptions}
@@ -280,56 +175,14 @@ export default function Product() {
 
           <SpecTable metrics={metrics} className="pdp__specs" />
 
-          <Accordion
-            className="pdp__accordion"
-            defaultOpenId="care"
-            items={[
-              {
-                id: 'care',
-                label: 'Care & polishing',
-                body: 'Wash with warm water and a soft cloth. A polishing cloth is included with every article.',
-              },
-              {
-                id: 'shipping',
-                label: 'Shipping & delivery',
-                body: 'Free insured shipping above ₹ 5,000, despatched from our Coimbatore workshop. Prepaid orders only — UPI, cards and net banking.',
-              },
-              {
-                id: 'returns',
-                label: 'Returns & buyback',
-                body: '7-day returns on unused articles in original packing. Lifetime buyback at the day’s silver rate.',
-              },
-              product.descriptionHtml
-                ? {
-                    id: 'description',
-                    label: 'About this article',
-                    body: (
-                      <div
-                        dangerouslySetInnerHTML={{
-                          __html: product.descriptionHtml,
-                        }}
-                      />
-                    ),
-                  }
-                : null,
-            ].filter(Boolean)}
-          />
+          {product.descriptionHtml ? (
+            <div
+              className="pdp__description"
+              dangerouslySetInnerHTML={{__html: product.descriptionHtml}}
+            />
+          ) : null}
         </div>
       </div>
-
-      <MakerBand />
-
-      <Suspense fallback={null}>
-        <Await resolve={recommended} errorElement={null}>
-          {(products) => (
-            <Recommendations
-              products={(products ?? []).filter((p) => p.id !== product.id).slice(0, 4)}
-              rate={rate}
-              delivery={delivery}
-            />
-          )}
-        </Await>
-      </Suspense>
 
       {/* Mobile sticky buy bar — price, weight and both actions stay reachable. */}
       <StickyBuyBar
@@ -344,7 +197,7 @@ export default function Product() {
             {
               id: product.id,
               title: product.title,
-              price: selectedVariant?.price?.amount || '0',
+              price: metrics.price?.amount || '0',
               vendor: product.vendor,
               variantId: selectedVariant?.id || '',
               variantTitle: selectedVariant?.title || '',
@@ -444,6 +297,7 @@ function ProductOptions({productOptions, selectedVariant}) {
  * @param {{selectedVariant: any, inStock: boolean, metrics: any}} props
  */
 function BuyControls({selectedVariant, inStock, metrics}) {
+  const bulkPath = useCollectionPath('bulk-and-corporate', 'bulk-corporate');
   const [quantity, setQuantity] = useState(1);
   const {open} = useAside();
 
@@ -497,7 +351,7 @@ function BuyControls({selectedVariant, inStock, metrics}) {
         {atMax ? (
           <>
             Ten is the most we sell online.{' '}
-            <Link className="link-inline" to="/collections/bulk-corporate">
+            <Link className="link-inline" to={bulkPath}>
               Bulk enquiry →
             </Link>
             <br />
@@ -559,7 +413,11 @@ function StickyBuyBar({selectedVariant, metrics, inStock}) {
   return (
     <div className="buy-bar">
       <div className="buy-bar__price">
-        <strong>{formatMoney(selectedVariant?.price)}</strong>
+        <strong>
+          {Number(metrics.price?.amount) > 0
+            ? formatMoney(metrics.price)
+            : 'Price on request'}
+        </strong>
         <span>
           {metrics.weightGrams ? `${formatGrams(metrics.weightGrams)} · ` : ''}
           {inStock ? 'in stock' : 'made to order'}
@@ -576,37 +434,6 @@ function StickyBuyBar({selectedVariant, metrics, inStock}) {
       </AddToCartButton>
       <BuyNowButton lines={lines} disabled={!inStock} />
     </div>
-  );
-}
-
-/** @param {{products: any[], rate: any, delivery: any}} props */
-function Recommendations({products, rate, delivery}) {
-  if (!products?.length) return null;
-
-  return (
-    <section className="section">
-      <div className="section__head">
-        <h2 className="t-display-s">Often bought together</h2>
-        <Link className="link-inline" to="/collections/pooja-articles">
-          All pooja articles →
-        </Link>
-      </div>
-      <div className="products-grid">
-        {products.map((product) => (
-          <ProductTile
-            key={product.id}
-            product={product}
-            metrics={getProductMetrics({
-              product,
-              variant: product.selectedOrFirstAvailableVariant,
-              ratePerGram: rate.ratePerGram,
-            })}
-            deliveryDate={delivery.short}
-            loading="lazy"
-          />
-        ))}
-      </div>
-    </section>
   );
 }
 
@@ -641,6 +468,12 @@ const PRODUCT_VARIANT_FRAGMENT = `#graphql
     sku
     title
     metafields(identifiers: [
+      {namespace: "custom", key: "metal_name"},
+      {namespace: "custom", key: "metal_weight"},
+      {namespace: "custom", key: "making_charge"},
+      {namespace: "custom", key: "metal"},
+      {namespace: "custom", key: "nett_weight_g"},
+      {namespace: "sha", key: "metal"},
       {namespace: "sha", key: "nett_weight_g"},
       {namespace: "sha", key: "making_charge"}
     ]) {
@@ -694,15 +527,14 @@ const PRODUCT_FRAGMENT = `#graphql
       ...ProductVariant
     }
     metafields(identifiers: [
+      {namespace: "custom", key: "metal_name"},
+      {namespace: "custom", key: "metal_weight"},
+      {namespace: "custom", key: "making_charge"},
+      {namespace: "custom", key: "metal"},
+      {namespace: "custom", key: "nett_weight_g"},
+      {namespace: "sha", key: "metal"},
       {namespace: "sha", key: "nett_weight_g"},
-      {namespace: "sha", key: "making_charge"},
-      {namespace: "sha", key: "weight_tolerance_g"},
-      {namespace: "sha", key: "purity"},
-      {namespace: "sha", key: "huid"},
-      {namespace: "sha", key: "dimensions"},
-      {namespace: "sha", key: "finish_note"},
-      {namespace: "sha", key: "made_at"},
-      {namespace: "sha", key: "article_code"}
+      {namespace: "sha", key: "making_charge"}
     ]) {
       key
       value

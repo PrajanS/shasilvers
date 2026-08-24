@@ -16,10 +16,9 @@ import tokenStyles from '~/styles/tokens.css?url';
 import appStyles from '~/styles/app.css?url';
 import {PageLayout} from '~/components/PageLayout';
 import {THEME_INIT_SCRIPT} from '~/components/ThemeToggle';
-import {getSilverRate} from '~/lib/silver-rate.server';
+import {COLLECTIONS_QUERY} from '~/lib/product-queries';
+import {getMetalRates} from '~/lib/metal-rates.server';
 import {getDeliveryEstimate} from '~/lib/delivery';
-import {isDemoMode} from '~/lib/demo/mode';
-import {getDemoCart} from '~/lib/demo/cart.server';
 
 /**
  * Avoid re-fetching root data on sub-navigations.
@@ -54,23 +53,36 @@ export function links() {
  * @param {Route.LoaderArgs} args
  */
 export async function loader(args) {
-  const {storefront, env, cart, customerAccount, session} = args.context;
-  const demo = isDemoMode(env);
+  const {storefront, env, cart, customerAccount} = args.context;
 
   // The silver rate and the delivery promise are resolved once, on the server,
   // and shared by every component that prints them. That keeps the rate bar,
   // the tiles, the product page and the bag from ever quoting different
   // numbers, and keeps server and client markup identical through hydration.
-  const rate = getSilverRate();
+  // Today's rate for each metal the shop publishes, resolved once on the
+  // server and passed down. The rate strip, the tiles, the product page and
+  // the bag then quote one set of figures, and the server and client render
+  // identically through hydration.
+  const rates = await getMetalRates(storefront);
   const delivery = getDeliveryEstimate();
 
+  // What the shop sells is whatever collections exist in Shopify. Resolved
+  // here so the header, footer, home strip and search page all read one list.
+  // A storefront that cannot answer must not take every page down with it —
+  // the nav degrades to empty rather than 500ing.
+  const collections = await storefront
+    .query(COLLECTIONS_QUERY, {
+      variables: {first: 50},
+      cache: storefront.CacheLong(),
+    })
+    .then((result) => result?.collections?.nodes ?? [])
+    .catch(() => []);
+
   return {
-    // DEMO: with no store connected the bag lives in the session, because the
-    // demo catalogue's variant IDs are not Shopify's. See ~/lib/demo/cart.
-    cart: demo ? Promise.resolve(getDemoCart(session)) : cart.get(),
+    cart: cart.get(),
     isLoggedIn: customerAccount.isLoggedIn(),
-    demo,
-    rate,
+    collections,
+    rates,
     delivery,
     publicStoreDomain: env.PUBLIC_STORE_DOMAIN,
     shop: getShopAnalytics({
@@ -134,8 +146,12 @@ export default function App() {
   }
 
   return (
-    <Analytics.Provider cart={data.cart} shop={data.shop} consent={data.consent}>
-      <PageLayout cart={data.cart} rate={data.rate} demo={data.demo}>
+    <Analytics.Provider
+      cart={data.cart}
+      shop={data.shop}
+      consent={data.consent}
+    >
+      <PageLayout cart={data.cart} rates={data.rates}>
         <Outlet />
       </PageLayout>
     </Analytics.Provider>
