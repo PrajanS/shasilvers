@@ -1,6 +1,7 @@
 import {Link} from 'react-router';
-import {SHOP} from '~/lib/shop';
+import {SHOP, isPlaceholder} from '~/lib/shop';
 import {useCollections, useCollectionPath} from '~/lib/collections';
+import {useShopContent, keepPublished} from '~/lib/content';
 
 const HELP_LINKS = [
   {label: 'Track order', to: '/account/orders'},
@@ -16,14 +17,21 @@ const aboutLinks = (bulkPath) => [
   {label: 'Hallmarking', to: '/pages/hallmarking'},
   {label: 'Bulk orders', to: bulkPath},
   {label: 'Terms', to: '/policies/terms-of-service'},
+  {label: 'Privacy', to: '/policies/privacy-policy'},
 ];
 
 const PAYMENT_METHODS = ['UPI', 'Cards', 'Net banking'];
 
 export function Footer() {
   const collections = useCollections();
-  const aboutLinkList = aboutLinks(
-    useCollectionPath('bulk-and-corporate', 'bulk-corporate'),
+  const content = useShopContent();
+  // Editorial links name the page they mean; only the ones the shop has
+  // actually published are rendered. "Track order" and the bulk collection are
+  // storefront routes, not Shopify content, so they always survive the filter.
+  const helpLinkList = keepPublished(HELP_LINKS, content);
+  const aboutLinkList = keepPublished(
+    aboutLinks(useCollectionPath('bulk-and-corporate', 'bulk-corporate')),
+    content,
   );
   const year = new Date().getFullYear();
 
@@ -34,7 +42,7 @@ export function Footer() {
           <div className="site-footer__brand">{SHOP.name}</div>
           <p>
             Manufacturers of 925 sterling silverware. {SHOP.city}, {SHOP.region}
-            . GSTIN {SHOP.gstin}.
+            .{isPlaceholder(SHOP.gstin) ? '' : ` GSTIN ${SHOP.gstin}.`}
           </p>
         </div>
 
@@ -47,31 +55,41 @@ export function Footer() {
           ))}
         </div>
 
-        <div className="footer-col">
-          <h2 className="footer-col__title">Help</h2>
-          {HELP_LINKS.map((link) => (
-            <Link key={link.label} to={link.to}>
-              {link.label}
-            </Link>
-          ))}
-        </div>
+        {helpLinkList.length ? (
+          <div className="footer-col">
+            <h2 className="footer-col__title">Help</h2>
+            {helpLinkList.map((link) => (
+              <Link key={link.label} to={link.to}>
+                {link.label}
+              </Link>
+            ))}
+          </div>
+        ) : null}
 
-        <div className="footer-col">
-          <h2 className="footer-col__title">About</h2>
-          {aboutLinkList.map((link) => (
-            <Link key={link.label} to={link.to}>
-              {link.label}
-            </Link>
-          ))}
-        </div>
+        {aboutLinkList.length ? (
+          <div className="footer-col">
+            <h2 className="footer-col__title">About</h2>
+            {aboutLinkList.map((link) => (
+              <Link key={link.label} to={link.to}>
+                {link.label}
+              </Link>
+            ))}
+          </div>
+        ) : null}
 
         <div>
-          <h2 className="footer-col__title">Order on WhatsApp</h2>
-          <p>
-            {SHOP.whatsapp}
-            <br />
-            {SHOP.whatsappHours}
-          </p>
+          {/* The WhatsApp column is only worth a heading when there is a real
+              number under it; otherwise this is just the payment strip. */}
+          <h2 className="footer-col__title">
+            {isPlaceholder(SHOP.whatsapp) ? 'Payment' : 'Order on WhatsApp'}
+          </h2>
+          {isPlaceholder(SHOP.whatsapp) ? null : (
+            <p>
+              {SHOP.whatsapp}
+              <br />
+              {SHOP.whatsappHours}
+            </p>
+          )}
           <div className="footer-pay">
             {PAYMENT_METHODS.map((method) => (
               <span key={method}>{method}</span>

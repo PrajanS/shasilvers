@@ -17,6 +17,7 @@ import appStyles from '~/styles/app.css?url';
 import {PageLayout} from '~/components/PageLayout';
 import {THEME_INIT_SCRIPT} from '~/components/ThemeToggle';
 import {COLLECTIONS_QUERY} from '~/lib/product-queries';
+import {SHOP_CONTENT_QUERY, parseShopContent} from '~/lib/content';
 import {getMetalRates} from '~/lib/metal-rates.server';
 import {getDeliveryEstimate} from '~/lib/delivery';
 
@@ -55,14 +56,11 @@ export function links() {
 export async function loader(args) {
   const {storefront, env, cart, customerAccount} = args.context;
 
-  // The silver rate and the delivery promise are resolved once, on the server,
-  // and shared by every component that prints them. That keeps the rate bar,
-  // the tiles, the product page and the bag from ever quoting different
-  // numbers, and keeps server and client markup identical through hydration.
-  // Today's rate for each metal the shop publishes, resolved once on the
-  // server and passed down. The rate strip, the tiles, the product page and
-  // the bag then quote one set of figures, and the server and client render
-  // identically through hydration.
+  // Today's rate for each metal the shop publishes, and the delivery promise,
+  // resolved on the server and passed down. The rate strip, the tiles, the
+  // product page and the bag then quote one set of figures, and server and
+  // client render identically through hydration. Routes resolve these again
+  // for themselves; the ten-minute cache is what keeps them agreeing.
   const rates = await getMetalRates(storefront);
   const delivery = getDeliveryEstimate();
 
@@ -70,18 +68,30 @@ export async function loader(args) {
   // here so the header, footer, home strip and search page all read one list.
   // A storefront that cannot answer must not take every page down with it —
   // the nav degrades to empty rather than 500ing.
-  const collections = await storefront
-    .query(COLLECTIONS_QUERY, {
-      variables: {first: 50},
-      cache: storefront.CacheLong(),
-    })
-    .then((result) => result?.collections?.nodes ?? [])
-    .catch(() => []);
+  // Which editorial content exists is Shopify's answer too, so the footer can
+  // link to what has been written and drop the rest instead of rendering 404s.
+  const [collections, content] = await Promise.all([
+    storefront
+      .query(COLLECTIONS_QUERY, {
+        variables: {first: 50},
+        cache: storefront.CacheLong(),
+      })
+      .then((result) => result?.collections?.nodes ?? [])
+      .catch(() => []),
+    storefront
+      .query(SHOP_CONTENT_QUERY, {
+        variables: {first: 50},
+        cache: storefront.CacheLong(),
+      })
+      .then(parseShopContent)
+      .catch(() => ({pages: [], policies: []})),
+  ]);
 
   return {
     cart: cart.get(),
     isLoggedIn: customerAccount.isLoggedIn(),
     collections,
+    content,
     rates,
     delivery,
     publicStoreDomain: env.PUBLIC_STORE_DOMAIN,

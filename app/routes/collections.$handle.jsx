@@ -1,29 +1,24 @@
-import {
-  useLoaderData,
-  useSearchParams,
-  useSubmit,
-  Link,
-  Form,
-} from 'react-router';
+import {useLoaderData, useSearchParams, Link} from 'react-router';
 import {getPaginationVariables, Analytics, Pagination} from '@shopify/hydrogen';
-import {useId, useRef, useState} from 'react';
 import {ProductTile} from '~/components/ProductTile';
 import {Breadcrumbs} from '~/components/Breadcrumbs';
+import {
+  FacetForm,
+  ListingControls,
+  useListingFilters,
+} from '~/components/ListingControls';
 import {COLLECTION_QUERY} from '~/lib/product-queries';
 import {getProductMetrics} from '~/lib/pricing';
 import {getMetalRates} from '~/lib/metal-rates.server';
 import {getDeliveryEstimate} from '~/lib/delivery';
 import {formatAmount} from '~/lib/money';
 import {
-  FILTER_GROUPS,
-  SORT_OPTIONS,
   DEFAULT_SORT,
   applyFilters,
   clearFiltersSearch,
-  getActiveChips,
   getSort,
-  parseFilters,
-  toggleFilterSearch,
+  sortItems,
+  sortKeyFor,
 } from '~/lib/collection-filters';
 
 /** @type {Route.MetaFunction} */
@@ -55,7 +50,9 @@ export async function loader({context, params, request}) {
   const {collection} = await storefront.query(COLLECTION_QUERY, {
     variables: {
       handle,
-      sortKey: sort.sortKey,
+      // A collection's products take ProductCollectionSortKeys, not the
+      // ProductSortKeys the catalogue and search use.
+      sortKey: sortKeyFor(sort, 'collection'),
       reverse: sort.reverse,
       ...paginationVariables,
     },
@@ -107,19 +104,19 @@ export default function Collection() {
   const {title, products, collectionId, handle, rates, delivery} =
     useLoaderData();
   const [searchParams] = useSearchParams();
-  const [panel, setPanel] = useState(null); // null | 'filter' | 'sort'
-  const sortRef = useRef(null);
-  const panelId = useId();
 
-  const filters = parseFilters(searchParams);
-  const chips = getActiveChips(filters);
-  const activeSort = getSort(searchParams.get('sort') ?? DEFAULT_SORT);
+  // Article types are whatever this grid actually contains, not a fixed list.
+  const {filters, groups, chips, activeSort} = useListingFilters(
+    searchParams,
+    (products?.nodes ?? []).map((product) => ({product})),
+  );
 
   return (
     <div className="listing">
       <aside className="listing__aside" aria-label="Filters">
         <FacetForm
           filters={filters}
+          groups={groups}
           searchParams={searchParams}
           rates={rates}
           activeSort={activeSort}
@@ -139,85 +136,14 @@ export default function Collection() {
           </div>
         </div>
 
-        {/*
-          Mobile: the facet column is hidden, so both controls open the same
-          panel. Sort focuses the select inside it — previously this button
-          closed the panel and did nothing else, leaving mobile unable to sort.
-        */}
-        <div className="listing-bar">
-          <button
-            type="button"
-            aria-expanded={panel === 'filter'}
-            aria-controls={panelId}
-            onClick={() => setPanel(panel === 'filter' ? null : 'filter')}
-          >
-            Filter{chips.length ? ` · ${chips.length}` : ''}
-          </button>
-          <button
-            type="button"
-            aria-expanded={panel === 'sort'}
-            aria-controls={panelId}
-            onClick={() => {
-              setPanel(panel === 'sort' ? null : 'sort');
-              // Let the panel mount before reaching for the control inside it.
-              requestAnimationFrame(() => sortRef.current?.focus());
-            }}
-          >
-            Sort · {activeSort.label}
-          </button>
-        </div>
-
-        {panel ? (
-          <div className="facet-panel" id={panelId}>
-            <div className="facet-panel__head">
-              <span className="t-label">
-                {panel === 'sort' ? 'Sort' : 'Filter'}
-              </span>
-              <button
-                type="button"
-                className="facet-panel__close"
-                onClick={() => setPanel(null)}
-              >
-                Done
-              </button>
-            </div>
-            <FacetForm
-              filters={filters}
-              searchParams={searchParams}
-              rates={rates}
-              activeSort={activeSort}
-              sortRef={sortRef}
-              idPrefix="panel"
-            />
-          </div>
-        ) : null}
-
-        {chips.length ? (
-          <div className="applied-filters">
-            <span className="applied-filters__label">Filters</span>
-            {chips.map((chip) => (
-              <Link
-                key={`${chip.param}-${chip.value}`}
-                className="filter-chip"
-                preventScrollReset
-                to={`?${toggleFilterSearch(searchParams, chip.param, chip.value)}`}
-                aria-label={`Remove filter ${chip.label}`}
-              >
-                {chip.label}
-                <span className="filter-chip__x" aria-hidden="true">
-                  ×
-                </span>
-              </Link>
-            ))}
-            <Link
-              className="link-inline"
-              preventScrollReset
-              to={`?${clearFiltersSearch(searchParams)}`}
-            >
-              Clear all
-            </Link>
-          </div>
-        ) : null}
+        <ListingControls
+          filters={filters}
+          groups={groups}
+          chips={chips}
+          searchParams={searchParams}
+          rates={rates}
+          activeSort={activeSort}
+        />
 
         <Pagination connection={products}>
           {({nodes, isLoading, NextLink, hasNextPage}) => {
@@ -231,7 +157,12 @@ export default function Collection() {
                 rates,
               }),
             }));
-            const visible = applyFilters(decorated, filters);
+            // Filtered, then ordered by the price actually on screen — see
+            // `sortItems`. Both operate on the pages fetched so far.
+            const visible = sortItems(
+              applyFilters(decorated, filters),
+              activeSort,
+            );
 
             if (!visible.length) {
               // Filters are applied to the pages fetched so far, so a later
@@ -309,131 +240,6 @@ export default function Collection() {
   );
 }
 
-/**
- * Filters and sort, as one real form.
- *
- * These used to be links with a decorative `<input type="checkbox">` inside
- * them — which announced an uncheckable checkbox nested in a link, and lied
- * to every screen reader. They are now genuine checkboxes in a GET form, so
- * the control the buyer operates is the control assistive tech reports.
- *
- * Submitting on change keeps the URL as the single source of truth. Every
- * filter lives in this one form, so nothing has to be threaded through hidden
- * inputs, and the pagination cursor is dropped naturally by not being here.
- * Without JavaScript the Apply button submits it.
- *
- * @param {{
- *   filters: Record<string,string[]>,
- *   searchParams: URLSearchParams,
- *   rates: any,
- *   activeSort: any,
- *   sortRef?: any,
- *   idPrefix?: string,
- * }} props
- */
-function FacetForm({
-  filters,
-  searchParams,
-  rates,
-  activeSort,
-  sortRef,
-  idPrefix,
-}) {
-  const submit = useSubmit();
-  const generatedId = useId();
-  const sortId = `sort-${idPrefix ?? generatedId}`;
-  const query = searchParams.get('q');
-
-  return (
-    <Form
-      method="get"
-      className="facets"
-      // Checkboxes are uncontrolled, so remount them whenever the URL changes
-      // — otherwise removing a filter via its chip leaves the box still ticked.
-      key={searchParams.toString()}
-      onChange={(event) =>
-        submit(event.currentTarget, {preventScrollReset: true})
-      }
-    >
-      {/* Preserved across a filter change; the cursor deliberately is not. */}
-      {query ? <input type="hidden" name="q" value={query} readOnly /> : null}
-
-      <div className="facets__group">
-        <label className="facets__title" htmlFor={sortId}>
-          Sort
-        </label>
-        <div className="sort-control sort-control--panel">
-          <select
-            id={sortId}
-            name="sort"
-            ref={sortRef}
-            defaultValue={activeSort.value}
-          >
-            {SORT_OPTIONS.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
-        </div>
-      </div>
-
-      {FILTER_GROUPS.map((group) => (
-        <fieldset className="facets__group" key={group.param}>
-          <legend className="facets__title">{group.label}</legend>
-          <div className="facets__options">
-            {group.options.map((option) => {
-              const checked = (filters[group.param] ?? []).includes(
-                option.value,
-              );
-              const label =
-                group.param === 'price' && rates.currencyCode !== 'INR'
-                  ? priceLabelFor(option, rates.currencyCode)
-                  : option.label;
-
-              return (
-                <label className="checkbox-row" key={option.value}>
-                  <input
-                    type="checkbox"
-                    name={group.param}
-                    value={option.value}
-                    defaultChecked={checked}
-                  />
-                  {label}
-                </label>
-              );
-            })}
-          </div>
-        </fieldset>
-      ))}
-
-      <noscript>
-        <button type="submit" className="btn btn--outline facets__apply">
-          Apply filters
-        </button>
-      </noscript>
-    </Form>
-  );
-}
-
-/**
- * The price bands are written in rupees in the design. When the storefront is
- * trading in another currency, relabel them with that symbol so the filter
- * never contradicts the prices beside it.
- * @param {{min: number, max: number}} option
- * @param {string} currencyCode
- */
-function priceLabelFor(option, currencyCode) {
-  if (option.min === 0)
-    return `Under ${formatAmount(option.max, currencyCode)}`;
-  if (!Number.isFinite(option.max)) {
-    return `Above ${formatAmount(option.min, currencyCode)}`;
-  }
-  return `${formatAmount(option.min, currencyCode)} – ${formatAmount(
-    option.max,
-    currencyCode,
-  )}`;
-}
 
 /** @typedef {import('./+types/collections.$handle').Route} Route */
 /** @typedef {ReturnType<typeof useLoaderData<typeof loader>>} LoaderReturnData */

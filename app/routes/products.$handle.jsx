@@ -12,11 +12,12 @@ import {
 import {redirectIfHandleIsLocalized} from '~/lib/redirect';
 import {MediaWell} from '~/components/MediaWell';
 import {PriceBreakdown} from '~/components/PriceBreakdown';
+import {PriceNotice} from '~/components/PriceNotice';
 import {SpecTable} from '~/components/SpecTable';
 import {AddToCartButton} from '~/components/AddToCartButton';
 import {Breadcrumbs} from '~/components/Breadcrumbs';
 import {useAside} from '~/components/Aside';
-import {getProductMetrics} from '~/lib/pricing';
+import {getProductMetrics, buildCartLine} from '~/lib/pricing';
 import {useCollectionPath} from '~/lib/collections';
 import {getMetalRates} from '~/lib/metal-rates.server';
 import {getDeliveryEstimate} from '~/lib/delivery';
@@ -160,6 +161,18 @@ export default function Product() {
             marketRate={metrics.rate?.market}
             className="pdp__breakdown"
             explainMaking
+          />
+
+          {/*
+            Silent unless the calculated price and Shopify's disagree, in
+            which case checkout would bill a figure this page never showed.
+          */}
+          <PriceNotice
+            matches={metrics.priceMatchesShopify}
+            quoted={metrics.breakdown?.total}
+            charged={Number(metrics.shopifyPrice?.amount)}
+            currencyCode={metrics.breakdown?.currencyCode}
+            className="pdp__price-notice"
           />
 
           <ProductOptions
@@ -306,8 +319,10 @@ function BuyControls({selectedVariant, inStock, metrics}) {
   const MAX_QUANTITY = 10;
   const atMax = quantity >= MAX_QUANTITY;
 
+  // Carries the rate, weight and making charge onto the order — see
+  // `priceAttributes`. Today's rate cannot be recovered from a later one.
   const lines = selectedVariant
-    ? [{merchandiseId: selectedVariant.id, quantity, selectedVariant}]
+    ? [buildCartLine({variant: selectedVariant, metrics, quantity})]
     : [];
 
   return (
@@ -407,7 +422,7 @@ function BuyNowInner({fetcher, disabled}) {
 function StickyBuyBar({selectedVariant, metrics, inStock}) {
   const {open} = useAside();
   const lines = selectedVariant
-    ? [{merchandiseId: selectedVariant.id, quantity: 1, selectedVariant}]
+    ? [buildCartLine({variant: selectedVariant, metrics})]
     : [];
 
   return (

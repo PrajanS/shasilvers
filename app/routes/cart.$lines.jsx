@@ -1,4 +1,8 @@
 import {redirect} from 'react-router';
+import {numericId, positiveInt} from '~/lib/redirect';
+
+/** More than this many distinct variants in one link is not a real order. */
+const MAX_LINES = 25;
 
 /**
  * Automatically creates a new cart based on the URL and redirects straight to checkout.
@@ -23,16 +27,27 @@ export async function loader({request, context, params}) {
   const {cart} = context;
   const {lines} = params;
   if (!lines) return redirect('/cart');
-  const linesMap = lines.split(',').map((line) => {
-    const lineDetails = line.split(':');
-    const variantId = lineDetails[0];
-    const quantity = parseInt(lineDetails[1], 10);
 
-    return {
+  // Everything here comes from the URL. The variant id is interpolated into a
+  // gid, so it must be digits and nothing else, and the quantity used to be a
+  // bare `parseInt` — a link ending `:` sent `NaN` straight to Shopify.
+  // Anything malformed drops its line rather than failing the whole link.
+  const linesMap = [];
+  for (const line of lines.split(',').slice(0, MAX_LINES)) {
+    const [rawId, rawQuantity] = line.split(':');
+    const variantId = numericId(rawId);
+    const quantity = positiveInt(rawQuantity);
+    if (!variantId || !quantity) continue;
+
+    linesMap.push({
       merchandiseId: `gid://shopify/ProductVariant/${variantId}`,
       quantity,
-    };
-  });
+    });
+  }
+
+  if (!linesMap.length) {
+    throw new Response('That cart link is not valid.', {status: 400});
+  }
 
   const url = new URL(request.url);
   const searchParams = new URLSearchParams(url.search);

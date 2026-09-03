@@ -6,12 +6,13 @@ import {
   useNavigation,
   useOutletContext,
 } from 'react-router';
+import {Field, ReadonlyField} from '~/components/Field';
 
 /**
  * @type {Route.MetaFunction}
  */
 export const meta = () => {
-  return [{title: 'Profile'}];
+  return [{title: 'Profile — Sha Silvers'}];
 };
 
 /**
@@ -37,6 +38,8 @@ export async function action({request, context}) {
 
   try {
     const customer = {};
+    // Only the two fields Shopify lets a storefront change. Email and phone are
+    // the sign-in identity and are deliberately not in this list.
     const validInputKeys = ['firstName', 'lastName'];
     for (const [key, value] of form.entries()) {
       if (!validInputKeys.includes(key)) {
@@ -47,8 +50,7 @@ export async function action({request, context}) {
       }
     }
 
-    // update customer and possibly password
-    const {data, errors} = await customerAccount.mutate(
+    const {data: result, errors} = await customerAccount.mutate(
       CUSTOMER_UPDATE_MUTATION,
       {
         variables: {
@@ -62,13 +64,13 @@ export async function action({request, context}) {
       throw new Error(errors[0].message);
     }
 
-    if (!data?.customerUpdate?.customer) {
+    if (!result?.customerUpdate?.customer) {
       throw new Error('Customer profile update failed.');
     }
 
     return {
       error: null,
-      customer: data?.customerUpdate?.customer,
+      customer: result.customerUpdate.customer,
     };
   } catch (error) {
     return data(
@@ -85,52 +87,75 @@ export default function AccountProfile() {
   const {state} = useNavigation();
   /** @type {ActionReturnData} */
   const action = useActionData();
-  const customer = action?.customer ?? account?.customer;
+  const customer = action?.customer ?? account?.customer ?? {};
+  const saving = state !== 'idle';
+
+  const email = customer.emailAddress?.emailAddress;
+  const phone = customer.phoneNumber?.phoneNumber;
 
   return (
-    <div className="account-profile">
-      <h2>My profile</h2>
-      <br />
-      <Form method="PUT">
-        <legend>Personal information</legend>
-        <fieldset>
-          <label htmlFor="firstName">First name</label>
-          <input
-            id="firstName"
+    <section className="account-panel">
+      <header className="account-panel__head">
+        <h2 className="t-display-s">My profile</h2>
+        <p className="t-meta">
+          The name we put on the invoice and the parcel.
+        </p>
+      </header>
+
+      <Form method="PUT" className="account-form">
+        {action?.error ? (
+          <p className="account-form__error" role="alert">
+            {action.error}
+          </p>
+        ) : null}
+
+        {action?.customer ? (
+          <p className="account-form__ok" role="status">
+            Profile updated.
+          </p>
+        ) : null}
+
+        <div className="account-form__grid">
+          <Field
+            label="First name"
             name="firstName"
             type="text"
             autoComplete="given-name"
-            placeholder="First name"
-            aria-label="First name"
             defaultValue={customer.firstName ?? ''}
             minLength={2}
           />
-          <label htmlFor="lastName">Last name</label>
-          <input
-            id="lastName"
+          <Field
+            label="Last name"
             name="lastName"
             type="text"
             autoComplete="family-name"
-            placeholder="Last name"
-            aria-label="Last name"
             defaultValue={customer.lastName ?? ''}
             minLength={2}
           />
-        </fieldset>
-        {action?.error ? (
-          <p>
-            <mark>
-              <small>{action.error}</small>
-            </mark>
-          </p>
-        ) : (
-          <br />
-        )}
-        <button type="submit" disabled={state !== 'idle'}>
-          {state !== 'idle' ? 'Updating' : 'Update'}
-        </button>
+        </div>
+
+        {/* Shopify owns the sign-in identity: changing either here would
+            desynchronise the login, so both are shown and neither is editable. */}
+        {email || phone ? (
+          <div className="account-form__readonly">
+            <p className="t-eyebrow">Sign-in details</p>
+            <div className="account-form__grid">
+              {email ? <ReadonlyField label="Email" value={email} /> : null}
+              {phone ? <ReadonlyField label="Phone" value={phone} /> : null}
+            </div>
+            <p className="t-meta">
+              Email and phone are managed by your Shopify login, not here.
+            </p>
+          </div>
+        ) : null}
+
+        <div className="account-form__actions">
+          <button type="submit" className="btn btn--primary" disabled={saving}>
+            {saving ? 'Updating' : 'Update profile'}
+          </button>
+        </div>
       </Form>
-    </div>
+    </section>
   );
 }
 
@@ -144,5 +169,4 @@ export default function AccountProfile() {
 /** @typedef {import('customer-accountapi.generated').CustomerFragment} CustomerFragment */
 /** @typedef {import('@shopify/hydrogen/customer-account-api-types').CustomerUpdateInput} CustomerUpdateInput */
 /** @typedef {import('./+types/account.profile').Route} Route */
-/** @typedef {ReturnType<typeof useLoaderData<typeof loader>>} LoaderReturnData */
 /** @typedef {ReturnType<typeof useActionData<typeof action>>} ActionReturnData */

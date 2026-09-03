@@ -7,12 +7,30 @@
  * product page and the footer, and they must never disagree between them.
  */
 
+/**
+ * Values still carrying invented data.
+ *
+ * A GST number and a phone number are legal and contactable facts — publishing
+ * a made-up one is worse than publishing none, because a buyer cannot tell it
+ * is made up. `isPlaceholder` lets the chrome omit them until they are real,
+ * so nothing invented ships to a customer. Delete the entry here once the
+ * genuine value is filled in above.
+ */
+const PLACEHOLDERS = new Set(['33ABCDE1234F1Z5', '+91 98430 00000']);
+
+/** @param {string|null|undefined} value */
+export function isPlaceholder(value) {
+  return !value || PLACEHOLDERS.has(value);
+}
+
 export const SHOP = {
   name: 'Sha Silvers',
   tagline: '925 silverware · makers',
   since: 1978,
   city: 'Coimbatore',
   region: 'Tamil Nadu',
+  // TODO(business): replace both with the real values, then remove them from
+  // PLACEHOLDERS above so the footer starts rendering them.
   gstin: '33ABCDE1234F1Z5',
   whatsapp: '+91 98430 00000',
   whatsappHours: 'Mon–Sat, 9 AM – 7 PM',

@@ -1,10 +1,17 @@
-import {Link, useLoaderData} from 'react-router';
+import {useLoaderData} from 'react-router';
+import {Breadcrumbs} from '~/components/Breadcrumbs';
 
 /**
+ * One shop policy — refund, shipping, terms or privacy.
+ *
+ * The body is HTML written in the Shopify admin, so it arrives as arbitrary
+ * markup rather than components. `.prose` is the one place in the stylesheet
+ * that styles bare tags, for exactly this reason.
+ *
  * @type {Route.MetaFunction}
  */
 export const meta = ({data}) => {
-  return [{title: `Hydrogen | ${data?.policy.title ?? ''}`}];
+  return [{title: `${data?.policy.title ?? 'Policy'} — Sha Silvers`}];
 };
 
 /**
@@ -18,6 +25,19 @@ export async function loader({params, context}) {
   const policyName = params.handle.replace(/-([a-z])/g, (_, m1) =>
     m1.toUpperCase(),
   );
+
+  // The handle chooses which `@include` flag is set, so a handle that is not
+  // one of the four would set no flag and select nothing. Reject it here
+  // rather than sending a query that cannot answer.
+  const KNOWN = [
+    'privacyPolicy',
+    'shippingPolicy',
+    'termsOfService',
+    'refundPolicy',
+  ];
+  if (!KNOWN.includes(policyName)) {
+    throw new Response('Could not find the policy', {status: 404});
+  }
 
   const data = await context.storefront.query(POLICY_CONTENT_QUERY, {
     variables: {
@@ -44,16 +64,20 @@ export default function Policy() {
   const {policy} = useLoaderData();
 
   return (
-    <div className="policy">
-      <br />
-      <br />
-      <div>
-        <Link to="/policies">← Back to Policies</Link>
-      </div>
-      <br />
-      <h1>{policy.title}</h1>
-      <div dangerouslySetInnerHTML={{__html: policy.body}} />
-    </div>
+    <article className="editorial">
+      <Breadcrumbs
+        trail={[
+          {label: 'Home', to: '/'},
+          {label: 'Policies', to: '/policies'},
+          {label: policy.title},
+        ]}
+      />
+      <h1 className="t-display-l editorial__title">{policy.title}</h1>
+      <div
+        className="prose"
+        dangerouslySetInnerHTML={{__html: policy.body}}
+      />
+    </article>
   );
 }
 

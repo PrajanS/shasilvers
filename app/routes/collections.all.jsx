@@ -1,74 +1,90 @@
 import {useLoaderData} from 'react-router';
 import {getPaginationVariables} from '@shopify/hydrogen';
 import {PaginatedResourceSection} from '~/components/PaginatedResourceSection';
-import {ProductItem} from '~/components/ProductItem';
+import {ProductTile} from '~/components/ProductTile';
+import {Breadcrumbs} from '~/components/Breadcrumbs';
+import {ALL_PRODUCTS_QUERY} from '~/lib/product-queries';
+import {getProductMetrics} from '~/lib/pricing';
+import {getMetalRates} from '~/lib/metal-rates.server';
+import {getDeliveryEstimate} from '~/lib/delivery';
 
 /**
+ * Everything the shop sells, in one paginated grid.
+ *
+ * This used to be the unmigrated Hydrogen skeleton, and it quoted Shopify's own
+ * price through `<Money>` while every other surface quoted the calculated one —
+ * the same article at two different prices depending on the route. It now runs
+ * the same query, the same metrics and the same tile as the category listing,
+ * so there is one price in the storefront and one place it comes from.
+ *
  * @type {Route.MetaFunction}
  */
 export const meta = () => {
-  return [{title: `Hydrogen | Products`}];
+  return [
+    {title: 'All silverware — Sha Silvers'},
+    {
+      name: 'description',
+      content:
+        'Every article we make, priced at today’s metal rate plus making charge.',
+    },
+  ];
 };
 
 /**
  * @param {Route.LoaderArgs} args
  */
-export async function loader(args) {
-  // Start fetching non-critical data without blocking time to first byte
-  const deferredData = loadDeferredData(args);
-
-  // Await the critical data required to render initial state of the page
-  const criticalData = await loadCriticalData(args);
-
-  return {...deferredData, ...criticalData};
-}
-
-/**
- * Load data necessary for rendering content above the fold. This is the critical data
- * needed to render the page. If it's unavailable, the whole page should 400 or 500 error.
- * @param {Route.LoaderArgs}
- */
-async function loadCriticalData({context, request}) {
+export async function loader({context, request}) {
   const {storefront} = context;
   const paginationVariables = getPaginationVariables(request, {
-    pageBy: 8,
+    pageBy: 24,
   });
 
-  const [{products}] = await Promise.all([
-    storefront.query(CATALOG_QUERY, {
-      variables: {...paginationVariables},
+  // Rates and the delivery date are resolved per route, as everywhere else;
+  // the ten-minute cache is what keeps the routes agreeing.
+  const [rates, {products}] = await Promise.all([
+    getMetalRates(storefront),
+    storefront.query(ALL_PRODUCTS_QUERY, {
+      variables: {...paginationVariables, sortKey: 'BEST_SELLING'},
     }),
-    // Add other queries here, so that they are loaded in parallel
   ]);
-  return {products};
+
+  return {products, rates, delivery: getDeliveryEstimate()};
 }
 
-/**
- * Load data for rendering content below the fold. This data is deferred and will be
- * fetched after the initial page load. If it's unavailable, the page should still 200.
- * Make sure to not throw any errors here, as it will cause the page to 500.
- * @param {Route.LoaderArgs}
- */
-function loadDeferredData({context}) {
-  return {};
-}
-
-export default function Collection() {
+export default function AllProducts() {
   /** @type {LoaderReturnData} */
-  const {products} = useLoaderData();
+  const {products, rates, delivery} = useLoaderData();
 
   return (
-    <div className="collection">
-      <h1>Products</h1>
+    <div className="listing listing--full">
+      <Breadcrumbs
+        trail={[{label: 'Home', to: '/'}, {label: 'All silverware'}]}
+      />
+
+      <div className="listing__head">
+        <div>
+          <h1 className="t-display-l">All silverware</h1>
+          <p className="listing__count">
+            Every article we make · priced at today’s metal rate + making
+          </p>
+        </div>
+      </div>
+
       <PaginatedResourceSection
         connection={products}
         resourcesClassName="products-grid"
       >
         {({node: product, index}) => (
-          <ProductItem
+          <ProductTile
             key={product.id}
             product={product}
-            loading={index < 8 ? 'eager' : undefined}
+            metrics={getProductMetrics({
+              product,
+              variant: product.selectedOrFirstAvailableVariant,
+              rates,
+            })}
+            deliveryDate={delivery.short}
+            loading={index < 8 ? 'eager' : 'lazy'}
           />
         )}
       </PaginatedResourceSection>
@@ -76,58 +92,5 @@ export default function Collection() {
   );
 }
 
-const COLLECTION_ITEM_FRAGMENT = `#graphql
-  fragment MoneyCollectionItem on MoneyV2 {
-    amount
-    currencyCode
-  }
-  fragment CollectionItem on Product {
-    id
-    handle
-    title
-    featuredImage {
-      id
-      altText
-      url
-      width
-      height
-    }
-    priceRange {
-      minVariantPrice {
-        ...MoneyCollectionItem
-      }
-      maxVariantPrice {
-        ...MoneyCollectionItem
-      }
-    }
-  }
-`;
-
-// NOTE: https://shopify.dev/docs/api/storefront/latest/objects/product
-const CATALOG_QUERY = `#graphql
-  query Catalog(
-    $country: CountryCode
-    $language: LanguageCode
-    $first: Int
-    $last: Int
-    $startCursor: String
-    $endCursor: String
-  ) @inContext(country: $country, language: $language) {
-    products(first: $first, last: $last, before: $startCursor, after: $endCursor) {
-      nodes {
-        ...CollectionItem
-      }
-      pageInfo {
-        hasPreviousPage
-        hasNextPage
-        startCursor
-        endCursor
-      }
-    }
-  }
-  ${COLLECTION_ITEM_FRAGMENT}
-`;
-
 /** @typedef {import('./+types/collections.all').Route} Route */
-/** @typedef {import('storefrontapi.generated').CollectionItemFragment} CollectionItemFragment */
 /** @typedef {ReturnType<typeof useLoaderData<typeof loader>>} LoaderReturnData */

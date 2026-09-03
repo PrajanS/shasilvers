@@ -43,14 +43,12 @@ export const FILTER_GROUPS = [
     ],
   },
   {
+    // Options are derived from the products on the page — see
+    // `withTypeOptions`. A hardcoded list would go stale the moment the shop
+    // starts selling something it did not sell when this file was written.
     param: 'type',
     label: 'Article type',
-    options: [
-      {value: 'thali-plates', label: 'Thali & plates'},
-      {value: 'kumkum-bharani', label: 'Kumkum & bharani'},
-      {value: 'diya-lamps', label: 'Diya & lamps'},
-      {value: 'bells-accessories', label: 'Bells & accessories'},
-    ],
+    options: [],
   },
   {
     param: 'avail',
@@ -62,33 +60,101 @@ export const FILTER_GROUPS = [
   },
 ];
 
+/**
+ * Sort options.
+ *
+ * `sortKey`/`reverse` are what Shopify is asked for; `by` is how the resolved
+ * items are ordered once they arrive.
+ *
+ * The two price sorts deliberately do **not** ask Shopify for `PRICE`. Shopify
+ * would order by its own price field, and the grid renders the calculated one —
+ * so wherever the two disagree the order was visibly wrong. They fetch in a
+ * stable order and are sorted here, against the number actually on screen.
+ * Like the price and weight facets, this orders the products fetched so far.
+ *
+ * Two sort-key enums exist and they are not interchangeable. A collection's
+ * products take `ProductCollectionSortKeys` (`CREATED`); a top-level `products`
+ * query — the catalogue and search — takes `ProductSortKeys` (`CREATED_AT`).
+ * Each option carries both, and the caller picks with `sortKeyFor`.
+ */
 export const SORT_OPTIONS = [
   {
     value: 'price-asc',
     label: 'Price, low to high',
-    sortKey: 'PRICE',
+    sortKey: 'BEST_SELLING',
+    productSortKey: 'BEST_SELLING',
     reverse: false,
+    by: 'price',
+    desc: false,
   },
   {
     value: 'price-desc',
     label: 'Price, high to low',
-    sortKey: 'PRICE',
-    reverse: true,
+    sortKey: 'BEST_SELLING',
+    productSortKey: 'BEST_SELLING',
+    reverse: false,
+    by: 'price',
+    desc: true,
   },
-  {value: 'newest', label: 'Newest first', sortKey: 'CREATED', reverse: true},
+  {
+    value: 'newest',
+    label: 'Newest first',
+    sortKey: 'CREATED',
+    productSortKey: 'CREATED_AT',
+    reverse: true,
+    by: null,
+    desc: false,
+  },
   {
     value: 'popular',
     label: 'Most popular',
     sortKey: 'BEST_SELLING',
+    productSortKey: 'BEST_SELLING',
     reverse: false,
+    by: null,
+    desc: false,
   },
 ];
 
-export const DEFAULT_SORT = 'price-asc';
+/**
+ * Search offers one more: what Shopify thinks matches the term best.
+ *
+ * It leads the list and is the default there, because reordering a search by
+ * price would bury the article the buyer actually typed the name of.
+ * `RELEVANCE` is only meaningful alongside a `query`, so it is not offered on
+ * a listing.
+ */
+export const RELEVANCE_SORT = {
+  value: 'relevance',
+  label: 'Best match',
+  sortKey: 'RELEVANCE',
+  productSortKey: 'RELEVANCE',
+  reverse: false,
+  by: null,
+  desc: false,
+};
 
-/** @param {string} value */
-export function getSort(value) {
-  return SORT_OPTIONS.find((o) => o.value === value) ?? SORT_OPTIONS[0];
+export const SEARCH_SORT_OPTIONS = [RELEVANCE_SORT, ...SORT_OPTIONS];
+
+export const DEFAULT_SORT = 'price-asc';
+export const SEARCH_DEFAULT_SORT = 'relevance';
+
+/**
+ * @param {string} value
+ * @param {Array<any>} [options] The list this surface offers; the first is its
+ *   default, so an unknown or out-of-context value falls back sensibly.
+ */
+export function getSort(value, options = SORT_OPTIONS) {
+  return options.find((o) => o.value === value) ?? options[0];
+}
+
+/**
+ * The enum member to send, for the query being made.
+ * @param {any} sort
+ * @param {'collection'|'product'} kind
+ */
+export function sortKeyFor(sort, kind) {
+  return kind === 'product' ? sort.productSortKey : sort.sortKey;
 }
 
 /**
@@ -104,22 +170,6 @@ export function parseFilters(searchParams) {
     if (values.length) filters[group.param] = values;
   }
   return filters;
-}
-
-/**
- * The removable chips shown above the grid, in group order.
- * @param {Record<string, string[]>} filters
- * @returns {Array<{param: string, value: string, label: string}>}
- */
-export function getActiveChips(filters) {
-  const chips = [];
-  for (const group of FILTER_GROUPS) {
-    for (const value of filters[group.param] ?? []) {
-      const option = group.options.find((o) => o.value === value);
-      if (option) chips.push({param: group.param, value, label: option.label});
-    }
-  }
-  return chips;
 }
 
 /**
@@ -228,6 +278,80 @@ export function applyFilters(items, filters) {
     }
     return true;
   });
+}
+
+/**
+ * The filter groups, with the article-type options derived from what is
+ * actually in this grid.
+ *
+ * A type with no products on the page is not offered — a facet that can only
+ * ever return nothing is worse than no facet.
+ *
+ * @param {Array<{product: any}>} items
+ * @returns {typeof FILTER_GROUPS}
+ */
+export function withTypeOptions(items) {
+  /** @type {Map<string, string>} */
+  const seen = new Map();
+  for (const {product} of items ?? []) {
+    const label = product?.productType?.trim();
+    if (!label) continue;
+    const value = slugify(label);
+    if (value && !seen.has(value)) seen.set(value, label);
+  }
+
+  const options = [...seen.entries()]
+    .map(([value, label]) => ({value, label}))
+    .sort((a, b) => a.label.localeCompare(b.label));
+
+  return FILTER_GROUPS.map((group) =>
+    group.param === 'type' ? {...group, options} : group,
+  );
+}
+
+/**
+ * Order the resolved items for the chosen sort.
+ *
+ * Only the price sorts reorder anything: everything else keeps the order
+ * Shopify returned, which is the order it was asked for.
+ *
+ * @param {Array<{product: any, metrics: any}>} items
+ * @param {{by?: string|null, desc?: boolean}} sort
+ */
+export function sortItems(items, sort) {
+  if (sort?.by !== 'price') return items;
+
+  // An article with no resolvable price sinks to the bottom either way, rather
+  // than sorting as zero and leading a low-to-high list.
+  const amountOf = (item) => {
+    const n = Number(item?.metrics?.price?.amount);
+    return Number.isFinite(n) && n > 0 ? n : null;
+  };
+
+  return [...items].sort((a, b) => {
+    const x = amountOf(a);
+    const y = amountOf(b);
+    if (x === null && y === null) return 0;
+    if (x === null) return 1;
+    if (y === null) return -1;
+    return sort.desc ? y - x : x - y;
+  });
+}
+
+/**
+ * Chips for the applied filters, resolved against the groups actually offered.
+ * @param {Record<string, string[]>} filters
+ * @param {typeof FILTER_GROUPS} groups
+ */
+export function getActiveChipsFor(filters, groups) {
+  const chips = [];
+  for (const group of groups) {
+    for (const value of filters[group.param] ?? []) {
+      const option = group.options.find((o) => o.value === value);
+      if (option) chips.push({param: group.param, value, label: option.label});
+    }
+  }
+  return chips;
 }
 
 /** @param {string|null|undefined} value */

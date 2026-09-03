@@ -2,6 +2,17 @@ import {useLoaderData, Link} from 'react-router';
 import {getPaginationVariables, Image} from '@shopify/hydrogen';
 import {PaginatedResourceSection} from '~/components/PaginatedResourceSection';
 
+/** @type {Route.MetaFunction} */
+export const meta = () => {
+  return [
+    {title: 'Categories — Sha Silvers'},
+    {
+      name: 'description',
+      content: 'Every category of 925 sterling silverware we make.',
+    },
+  ];
+};
+
 /**
  * @param {Route.LoaderArgs} args
  */
@@ -41,7 +52,7 @@ async function loadCriticalData({context, request}) {
  * Make sure to not throw any errors here, as it will cause the page to 500.
  * @param {Route.LoaderArgs}
  */
-function loadDeferredData({context}) {
+function loadDeferredData() {
   return {};
 }
 

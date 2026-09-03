@@ -4,9 +4,17 @@ import {
   NavLink,
   Outlet,
   useLoaderData,
+  useNavigation,
 } from 'react-router';
+import {Breadcrumbs} from '~/components/Breadcrumbs';
 import {CUSTOMER_DETAILS_QUERY} from '~/graphql/customer-account/CustomerDetailsQuery';
 
+/**
+ * The account shell: heading, section nav, sign out.
+ *
+ * Shopify owns the sign-in identity, so nothing here creates or authenticates
+ * an account — these screens only read and amend what the customer already has.
+ */
 export function shouldRevalidate() {
   return true;
 }
@@ -30,6 +38,7 @@ export async function loader({context}) {
     {customer: data.customer},
     {
       headers: {
+        // Account pages are per-customer; never let a shared cache hold one.
         'Cache-Control': 'no-cache, no-store, must-revalidate',
       },
     },
@@ -40,55 +49,62 @@ export default function AccountLayout() {
   /** @type {LoaderReturnData} */
   const {customer} = useLoaderData();
 
-  const heading = customer
-    ? customer.firstName
-      ? `Welcome, ${customer.firstName}`
-      : `Welcome to your account.`
-    : 'Account Details';
+  const heading = customer?.firstName
+    ? `Welcome, ${customer.firstName}`
+    : 'Your account';
 
   return (
     <div className="account">
-      <h1>{heading}</h1>
-      <br />
+      <div className="account__head">
+        <Breadcrumbs trail={[{label: 'Home', to: '/'}, {label: 'Account'}]} />
+        <h1 className="t-display-l">{heading}</h1>
+        {customer?.emailAddress?.emailAddress ? (
+          <p className="t-meta">{customer.emailAddress.emailAddress}</p>
+        ) : null}
+      </div>
+
       <AccountMenu />
-      <br />
-      <br />
-      <Outlet context={{customer}} />
+
+      <div className="account__body">
+        <Outlet context={{customer}} />
+      </div>
     </div>
   );
 }
 
+/**
+ * Section nav. A real nav of real links — the active one is marked with
+ * `aria-current` by NavLink, and underlined rather than merely bolded so the
+ * state survives a colour-blind reader.
+ */
 function AccountMenu() {
-  function isActiveStyle({isActive, isPending}) {
-    return {
-      fontWeight: isActive ? 'bold' : undefined,
-      color: isPending ? 'grey' : 'black',
-    };
-  }
-
   return (
-    <nav role="navigation">
-      <NavLink to="/account/orders" style={isActiveStyle}>
-        Orders &nbsp;
-      </NavLink>
-      &nbsp;|&nbsp;
-      <NavLink to="/account/profile" style={isActiveStyle}>
-        &nbsp; Profile &nbsp;
-      </NavLink>
-      &nbsp;|&nbsp;
-      <NavLink to="/account/addresses" style={isActiveStyle}>
-        &nbsp; Addresses &nbsp;
-      </NavLink>
-      &nbsp;|&nbsp;
+    <nav className="account__nav" aria-label="Account sections">
+      <div className="account__tabs">
+        <NavLink className="account__tab" to="/account/orders">
+          Orders
+        </NavLink>
+        <NavLink className="account__tab" to="/account/profile">
+          Profile
+        </NavLink>
+        <NavLink className="account__tab" to="/account/addresses">
+          Addresses
+        </NavLink>
+      </div>
       <Logout />
     </nav>
   );
 }
 
 function Logout() {
+  const {state, formAction} = useNavigation();
+  const signingOut = state !== 'idle' && formAction === '/account/logout';
+
   return (
-    <Form className="account-logout" method="POST" action="/account/logout">
-      &nbsp;<button type="submit">Sign out</button>
+    <Form method="POST" action="/account/logout">
+      <button type="submit" className="btn btn--outline" disabled={signingOut}>
+        {signingOut ? 'Signing out' : 'Sign out'}
+      </button>
     </Form>
   );
 }

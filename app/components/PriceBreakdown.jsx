@@ -2,11 +2,14 @@ import {formatAmount, formatGrams} from '~/lib/money';
 import {metalLabel} from '~/lib/metals';
 
 /**
- * Metal, making, tax, total.
+ * Metal, making, total. There is no tax line: no tax is added, so the
+ * calculated figure is the figure.
  *
  * Unexpected cost is the single largest cause of abandonment, so the split is
  * shown wherever a price is committed to — the product page and the mobile
- * summary. The lines always sum to the price Shopify charges.
+ * summary. The lines always sum to the price *this storefront* quotes. Where
+ * that has drifted from the price Shopify's checkout would charge,
+ * `PriceNotice` says so beside this; the two are kept in step by hand.
  *
  * @param {{
  *   breakdown: ReturnType<typeof import('~/lib/pricing').buildPriceBreakdown>,

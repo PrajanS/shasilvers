@@ -5,9 +5,13 @@
  * its nett weight and the making charge. Together they are the price. They are
  * requested alongside the product wherever a tile or a spec table is rendered.
  *
- * Both the default `custom` namespace and `sha` are asked for, under either
- * spelling of each key, so the definitions work however they were named in the
- * admin. See `~/lib/pricing` for which spelling wins.
+ * Both the default `custom` namespace and `sha` are asked for, so the
+ * definitions work wherever they were created. The spellings differ between
+ * the two: `custom` is asked for both (`metal_name`/`metal`,
+ * `metal_weight`/`nett_weight_g`), `sha` only for `metal`, `nett_weight_g` and
+ * `making_charge` — `metafields(identifiers:)` costs a lookup per key, and
+ * those are the names each namespace is actually used with. See
+ * `~/lib/pricing` for which spelling wins when more than one is set.
  *
  * The fragment and the documents that use it live in the same module on
  * purpose. Hydrogen's codegen validates each file's GraphQL statically and
@@ -167,7 +171,13 @@ export const ALL_PRODUCTS_QUERY = `#graphql
   }
 `;
 
-/** Free-text search across the catalogue. */
+/**
+ * Free-text search across the catalogue.
+ *
+ * Takes `ProductSortKeys` — the same enum as `ALL_PRODUCTS_QUERY` and not the
+ * `ProductCollectionSortKeys` a collection uses. `RELEVANCE` is only
+ * meaningful here, where there is a `query` to be relevant to.
+ */
 export const SEARCH_PRODUCTS_QUERY = `#graphql
   ${PRODUCT_TILE_FRAGMENT}
   query SearchProducts(
@@ -175,8 +185,10 @@ export const SEARCH_PRODUCTS_QUERY = `#graphql
     $language: LanguageCode
     $query: String!
     $first: Int
+    $sortKey: ProductSortKeys
+    $reverse: Boolean
   ) @inContext(country: $country, language: $language) {
-    products(first: $first, query: $query) {
+    products(first: $first, query: $query, sortKey: $sortKey, reverse: $reverse) {
       nodes {
         ...ProductTile
       }

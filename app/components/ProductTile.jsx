@@ -3,6 +3,7 @@ import {MediaWell} from '~/components/MediaWell';
 import {AddToCartButton} from '~/components/AddToCartButton';
 import {useAside} from '~/components/Aside';
 import {formatAmount, formatGrams, formatMoney} from '~/lib/money';
+import {buildCartLine} from '~/lib/pricing';
 
 /**
  * The product tile.
@@ -38,13 +39,7 @@ export function ProductTile({product, metrics, deliveryDate, loading}) {
             variant="quickadd"
             formClassName="tile__quickadd"
             onClick={() => open('cart')}
-            lines={[
-              {
-                merchandiseId: variant.id,
-                quantity: 1,
-                selectedVariant: variant,
-              },
-            ]}
+            lines={[buildCartLine({variant, metrics})]}
           >
             Add to bag
           </AddToCartButton>

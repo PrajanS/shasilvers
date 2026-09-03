@@ -21,6 +21,8 @@ import {getCartLineMetrics} from '~/lib/pricing';
  *   total: number,
  *   freeShipping: boolean,
  *   allCalculated: boolean,
+ *   shopifySubtotal: number|null,
+ *   matchesShopify: boolean|null,
  * }|null}
  */
 export function cartTotals(cart, rates) {
@@ -54,6 +56,13 @@ export function cartTotals(cart, rates) {
   const freeShipping = subtotal >= FREE_SHIPPING_THRESHOLD;
   const shipping = freeShipping ? 0 : SHIPPING_FEE;
 
+  // What Shopify would charge for the same lines. Checkout is Shopify's, so
+  // where this disagrees with the calculated subtotal the buyer is about to be
+  // charged a different number from the one they were quoted — the bag says so
+  // rather than letting them find out on the payment page.
+  const theirs = Number(fallbackMoney?.amount);
+  const shopifySubtotal = Number.isFinite(theirs) && theirs > 0 ? theirs : null;
+
   return {
     currencyCode,
     subtotal,
@@ -61,6 +70,13 @@ export function cartTotals(cart, rates) {
     total: subtotal + shipping,
     freeShipping,
     allCalculated,
+    shopifySubtotal,
+    // Rounded to the rupee: the two are kept in step by hand and a few paise
+    // of arithmetic is not a discrepancy worth alarming anyone about.
+    matchesShopify:
+      allCalculated && shopifySubtotal !== null
+        ? Math.round(shopifySubtotal) === Math.round(subtotal)
+        : null,
   };
 }
 

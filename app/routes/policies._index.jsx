@@ -1,4 +1,10 @@
 import {useLoaderData, Link} from 'react-router';
+import {Breadcrumbs} from '~/components/Breadcrumbs';
+
+/** @type {Route.MetaFunction} */
+export const meta = () => {
+  return [{title: 'Policies — Sha Silvers'}];
+};
 
 /**
  * @param {Route.LoaderArgs}
@@ -27,15 +33,20 @@ export default function Policies() {
   const {policies} = useLoaderData();
 
   return (
-    <div className="policies">
-      <h1>Policies</h1>
-      <div>
+    <div className="editorial">
+      <Breadcrumbs trail={[{label: 'Home', to: '/'}, {label: 'Policies'}]} />
+      <h1 className="t-display-l editorial__title">Policies</h1>
+      <nav className="policy-list" aria-label="Shop policies">
         {policies.map((policy) => (
-          <fieldset key={policy.id}>
-            <Link to={`/policies/${policy.handle}`}>{policy.title}</Link>
-          </fieldset>
+          <Link
+            className="policy-list__item"
+            key={policy.id}
+            to={`/policies/${policy.handle}`}
+          >
+            {policy.title}
+          </Link>
         ))}
-      </div>
+      </nav>
     </div>
   );
 }

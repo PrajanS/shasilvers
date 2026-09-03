@@ -10,6 +10,7 @@ import {getProductMetrics} from '~/lib/pricing';
 import {getMetalRates} from '~/lib/metal-rates.server';
 import {getDeliveryEstimate} from '~/lib/delivery';
 import {useCollections, useCollectionPath} from '~/lib/collections';
+import {useShopContent, keepPublished} from '~/lib/content';
 
 /** @type {Route.MetaFunction} */
 export const meta = () => {
@@ -24,9 +25,9 @@ export const meta = () => {
 };
 
 /**
- * The first screen has to do the selling: search, all eight categories,
- * today's rate and the first row of buyable product are all reachable without
- * scrolling.
+ * The first screen has to do the selling: search, every category the shop
+ * publishes, today's rate and the first row of buyable product are all
+ * reachable without scrolling.
  * @param {Route.LoaderArgs} args
  */
 export async function loader({context}) {
@@ -107,6 +108,7 @@ function Hero() {
   const poojaPath = useCollectionPath('pooja-articles', 'pooja');
   const diningPath = useCollectionPath('dining-and-thali', 'dining-thali');
   const bulkPath = useCollectionPath('bulk-and-corporate', 'bulk-corporate');
+  const content = useShopContent();
 
   return (
     <section className="hero">
@@ -136,31 +138,36 @@ function Hero() {
         />
       </div>
 
+      {/* Two of these point at Shopify pages the shop may not have written
+          yet; those are dropped rather than rendered as dead links. */}
       <div className="hero__side">
-        {[
-          {
-            title: 'Buy by weight',
-            detail: 'Tell us the grammage, we quote instantly.',
-            to: '/pages/buy-by-weight',
-          },
-          {
-            title: 'Bulk & corporate gifting',
-            detail: '25 pieces and above, GST invoice.',
-            to: bulkPath,
-          },
-          {
-            title: 'Exchange old silver',
-            detail: 'Buyback at today’s rate.',
-            to: '/pages/buyback',
-          },
-          {
-            title: 'Track your order',
-            detail: 'Order number or phone.',
-            to: '/account/orders',
-          },
-        ].map((item) => (
-          <Link className="hero__side-item" key={item.title} to={item.to}>
-            <span className="hero__side-title">{item.title}</span>
+        {keepPublished(
+          [
+            {
+              label: 'Buy by weight',
+              detail: 'Tell us the grammage, we quote instantly.',
+              to: '/pages/buy-by-weight',
+            },
+            {
+              label: 'Bulk & corporate gifting',
+              detail: '25 pieces and above, GST invoice.',
+              to: bulkPath,
+            },
+            {
+              label: 'Exchange old silver',
+              detail: 'Buyback at today’s rate.',
+              to: '/pages/buyback',
+            },
+            {
+              label: 'Track your order',
+              detail: 'Order number or phone.',
+              to: '/account/orders',
+            },
+          ],
+          content,
+        ).map((item) => (
+          <Link className="hero__side-item" key={item.label} to={item.to}>
+            <span className="hero__side-title">{item.label}</span>
             <span className="hero__side-detail">{item.detail}</span>
           </Link>
         ))}

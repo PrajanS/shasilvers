@@ -1,6 +1,7 @@
 import {CartForm} from '@shopify/hydrogen';
 import {useId} from 'react';
 import {Button} from '~/components/Button';
+import {PriceNotice} from '~/components/PriceNotice';
 import {formatAmount, formatGrams} from '~/lib/money';
 import {cartWeightGrams, cartTotals} from '~/lib/cart-totals';
 
@@ -24,7 +25,15 @@ export function CartSummary({cart, rates}) {
 
   if (!totals) return null;
 
-  const {currencyCode, subtotal, shipping, total, freeShipping} = totals;
+  const {
+    currencyCode,
+    subtotal,
+    shipping,
+    total,
+    freeShipping,
+    shopifySubtotal,
+    matchesShopify,
+  } = totals;
 
   return (
     <div className="cart-summary" aria-labelledby={summaryId}>
@@ -56,6 +65,17 @@ export function CartSummary({cart, rates}) {
           <dd>{formatAmount(total, currencyCode)}</dd>
         </div>
       </dl>
+
+      {/*
+        Shown only when the calculated subtotal and Shopify's disagree — the
+        buyer would otherwise be charged a figure they were never quoted.
+      */}
+      <PriceNotice
+        matches={matchesShopify}
+        quoted={subtotal}
+        charged={shopifySubtotal}
+        currencyCode={currencyCode}
+      />
 
       {/*
         Checkout is our own one-page route, which collects contact and delivery

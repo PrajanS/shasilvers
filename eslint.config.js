@@ -153,7 +153,11 @@ export default [
     languageOptions: {
       parser: tsParser,
       parserOptions: {
-        project: './tsconfig.json',
+        // This project is JS + JSDoc, not TypeScript: there is no
+        // tsconfig.json and the only .ts file is `env.d.ts`. Pointing at the
+        // jsconfig — which is a valid TS project file and already lists
+        // env.d.ts — is what stops the parser erroring with TS5012.
+        project: './jsconfig.json',
         tsconfigRootDir: __dirname,
         ecmaFeatures: {
           jsx: true,
@@ -242,6 +246,18 @@ export default [
     files: ['**/*.server.*'],
     rules: {
       'react-hooks/rules-of-hooks': 'off',
+    },
+  },
+  {
+    // Build/admin scripts are CLIs. Printing progress to stdout is the point.
+    files: ['scripts/**/*'],
+    languageOptions: {
+      globals: {
+        ...globals.node,
+      },
+    },
+    rules: {
+      'no-console': 'off',
     },
   },
 ];

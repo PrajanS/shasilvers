@@ -1,3 +1,4 @@
+import {useId} from 'react';
 import {
   data,
   Form,
@@ -15,7 +16,7 @@ import {
  * @type {Route.MetaFunction}
  */
 export const meta = () => {
-  return [{title: 'Addresses'}];
+  return [{title: 'Addresses — Sha Silvers'}];
 };
 
 /**
@@ -254,27 +255,30 @@ export default function Addresses() {
   const {defaultAddress, addresses} = customer;
 
   return (
-    <div className="account-addresses">
-      <h2>Addresses</h2>
-      <br />
-      <div>
-        <div>
-          <legend>Create address</legend>
+    <section className="account-panel">
+      <header className="account-panel__head">
+        <h2 className="t-display-s">Addresses</h2>
+        <p className="t-meta">
+          Where we send the parcel. The default is used to prefill checkout.
+        </p>
+      </header>
+
+      <div className="account-addresses">
+        <div className="account-address">
+          <h3 className="t-label">Add an address</h3>
           <NewAddressForm key={addresses.nodes.length} />
         </div>
-        <br />
-        <hr />
-        <br />
-        {!addresses.nodes.length ? (
-          <p>You have no addresses saved.</p>
-        ) : (
+
+        {addresses.nodes.length ? (
           <ExistingAddresses
             addresses={addresses}
             defaultAddress={defaultAddress}
           />
+        ) : (
+          <p className="t-meta">No addresses saved yet.</p>
         )}
       </div>
-    </div>
+    </section>
   );
 }
 
@@ -300,13 +304,14 @@ function NewAddressForm() {
       defaultAddress={null}
     >
       {({stateForMethod}) => (
-        <div>
+        <div className="account-address__actions">
           <button
+            className="btn btn--primary"
             disabled={stateForMethod('POST') !== 'idle'}
             formMethod="POST"
             type="submit"
           >
-            {stateForMethod('POST') !== 'idle' ? 'Creating' : 'Create'}
+            {stateForMethod('POST') !== 'idle' ? 'Creating' : 'Create address'}
           </button>
         </div>
       )}
@@ -319,36 +324,44 @@ function NewAddressForm() {
  */
 function ExistingAddresses({addresses, defaultAddress}) {
   return (
-    <div>
-      <legend>Existing addresses</legend>
+    <>
       {addresses.nodes.map((address) => (
-        <AddressForm
-          key={address.id}
-          addressId={address.id}
-          address={address}
-          defaultAddress={defaultAddress}
-        >
-          {({stateForMethod}) => (
-            <div>
-              <button
-                disabled={stateForMethod('PUT') !== 'idle'}
-                formMethod="PUT"
-                type="submit"
-              >
-                {stateForMethod('PUT') !== 'idle' ? 'Saving' : 'Save'}
-              </button>
-              <button
-                disabled={stateForMethod('DELETE') !== 'idle'}
-                formMethod="DELETE"
-                type="submit"
-              >
-                {stateForMethod('DELETE') !== 'idle' ? 'Deleting' : 'Delete'}
-              </button>
-            </div>
-          )}
-        </AddressForm>
+        <div className="account-address" key={address.id}>
+          <h3 className="t-label">
+            Saved address
+            {defaultAddress?.id === address.id ? (
+              <span className="account-address__default">Default</span>
+            ) : null}
+          </h3>
+          <AddressForm
+            addressId={address.id}
+            address={address}
+            defaultAddress={defaultAddress}
+          >
+            {({stateForMethod}) => (
+              <div className="account-address__actions">
+                <button
+                  className="btn btn--primary"
+                  disabled={stateForMethod('PUT') !== 'idle'}
+                  formMethod="PUT"
+                  type="submit"
+                >
+                  {stateForMethod('PUT') !== 'idle' ? 'Saving' : 'Save'}
+                </button>
+                <button
+                  className="btn btn--outline"
+                  disabled={stateForMethod('DELETE') !== 'idle'}
+                  formMethod="DELETE"
+                  type="submit"
+                >
+                  {stateForMethod('DELETE') !== 'idle' ? 'Deleting' : 'Delete'}
+                </button>
+              </div>
+            )}
+          </AddressForm>
+        </div>
       ))}
-    </div>
+    </>
   );
 }
 
@@ -368,141 +381,189 @@ export function AddressForm({addressId, address, defaultAddress, children}) {
   const action = useActionData();
   const error = action?.error?.[addressId];
   const isDefaultAddress = defaultAddress?.id === addressId;
+
+  // Several of these forms render at once — the new-address form plus one per
+  // saved address. A fixed id would make every label on the page point at the
+  // first form's input, so ids are scoped per form instance.
+  const uid = useId();
+  /** @param {string} name */
+  const fieldId = (name) => `${uid}-${name}`;
+
   return (
-    <Form id={addressId}>
-      <fieldset>
-        <input type="hidden" name="addressId" defaultValue={addressId} />
-        <label htmlFor="firstName">First name*</label>
-        <input
-          aria-label="First name"
-          autoComplete="given-name"
-          defaultValue={address?.firstName ?? ''}
-          id="firstName"
-          name="firstName"
-          placeholder="First name"
-          required
-          type="text"
-        />
-        <label htmlFor="lastName">Last name*</label>
-        <input
-          aria-label="Last name"
-          autoComplete="family-name"
-          defaultValue={address?.lastName ?? ''}
-          id="lastName"
-          name="lastName"
-          placeholder="Last name"
-          required
-          type="text"
-        />
-        <label htmlFor="company">Company</label>
-        <input
-          aria-label="Company"
-          autoComplete="organization"
-          defaultValue={address?.company ?? ''}
-          id="company"
-          name="company"
-          placeholder="Company"
-          type="text"
-        />
-        <label htmlFor="address1">Address line*</label>
-        <input
-          aria-label="Address line 1"
-          autoComplete="address-line1"
-          defaultValue={address?.address1 ?? ''}
-          id="address1"
-          name="address1"
-          placeholder="Address line 1*"
-          required
-          type="text"
-        />
-        <label htmlFor="address2">Address line 2</label>
-        <input
-          aria-label="Address line 2"
-          autoComplete="address-line2"
-          defaultValue={address?.address2 ?? ''}
-          id="address2"
-          name="address2"
-          placeholder="Address line 2"
-          type="text"
-        />
-        <label htmlFor="city">City*</label>
-        <input
-          aria-label="City"
-          autoComplete="address-level2"
-          defaultValue={address?.city ?? ''}
-          id="city"
-          name="city"
-          placeholder="City"
-          required
-          type="text"
-        />
-        <label htmlFor="zoneCode">State / Province*</label>
-        <input
-          aria-label="State/Province"
-          autoComplete="address-level1"
-          defaultValue={address?.zoneCode ?? ''}
-          id="zoneCode"
-          name="zoneCode"
-          placeholder="State / Province"
-          required
-          type="text"
-        />
-        <label htmlFor="zip">Zip / Postal Code*</label>
-        <input
-          aria-label="Zip"
-          autoComplete="postal-code"
-          defaultValue={address?.zip ?? ''}
-          id="zip"
-          name="zip"
-          placeholder="Zip / Postal Code"
-          required
-          type="text"
-        />
-        <label htmlFor="territoryCode">Country Code*</label>
-        <input
-          aria-label="Country code"
-          autoComplete="country"
-          defaultValue={address?.territoryCode ?? ''}
-          id="territoryCode"
-          name="territoryCode"
-          placeholder="Country"
-          required
-          type="text"
-          maxLength={2}
-        />
-        <label htmlFor="phoneNumber">Phone</label>
-        <input
-          aria-label="Phone Number"
-          autoComplete="tel"
-          defaultValue={address?.phoneNumber ?? ''}
-          id="phoneNumber"
-          name="phoneNumber"
-          placeholder="+16135551111"
-          pattern="^\+?[1-9]\d{3,14}$"
-          type="tel"
-        />
-        <div>
+    <Form id={addressId} className="address-form">
+      <input type="hidden" name="addressId" defaultValue={addressId} />
+      <div className="address-form__grid">
+        <div className="field">
+          <label className="field__label" htmlFor={fieldId('firstName')}>
+            First name*
+          </label>
           <input
-            defaultChecked={isDefaultAddress}
-            id="defaultAddress"
-            name="defaultAddress"
-            type="checkbox"
+            className="field__input"
+            autoComplete="given-name"
+            defaultValue={address?.firstName ?? ''}
+            id={fieldId('firstName')}
+            name="firstName"
+            required
+            type="text"
           />
-          <label htmlFor="defaultAddress">Set as default address</label>
         </div>
-        {error ? (
-          <p>
-            <mark>
-              <small>{error}</small>
-            </mark>
-          </p>
-        ) : (
-          <br />
-        )}
-        {children({
-          stateForMethod: (method) => (formMethod === method ? state : 'idle'),
-        })}
-      </fieldset>
+
+        <div className="field">
+          <label className="field__label" htmlFor={fieldId('lastName')}>
+            Last name*
+          </label>
+          <input
+            className="field__input"
+            autoComplete="family-name"
+            defaultValue={address?.lastName ?? ''}
+            id={fieldId('lastName')}
+            name="lastName"
+            required
+            type="text"
+          />
+        </div>
+
+        <div className="field field--wide">
+          <label className="field__label" htmlFor={fieldId('company')}>
+            Company
+          </label>
+          <input
+            className="field__input"
+            autoComplete="organization"
+            defaultValue={address?.company ?? ''}
+            id={fieldId('company')}
+            name="company"
+            type="text"
+          />
+        </div>
+
+        <div className="field field--wide">
+          <label className="field__label" htmlFor={fieldId('address1')}>
+            Address line 1*
+          </label>
+          <input
+            className="field__input"
+            autoComplete="address-line1"
+            defaultValue={address?.address1 ?? ''}
+            id={fieldId('address1')}
+            name="address1"
+            required
+            type="text"
+          />
+        </div>
+
+        <div className="field field--wide">
+          <label className="field__label" htmlFor={fieldId('address2')}>
+            Address line 2
+          </label>
+          <input
+            className="field__input"
+            autoComplete="address-line2"
+            defaultValue={address?.address2 ?? ''}
+            id={fieldId('address2')}
+            name="address2"
+            type="text"
+          />
+        </div>
+
+        <div className="field">
+          <label className="field__label" htmlFor={fieldId('city')}>
+            City*
+          </label>
+          <input
+            className="field__input"
+            autoComplete="address-level2"
+            defaultValue={address?.city ?? ''}
+            id={fieldId('city')}
+            name="city"
+            required
+            type="text"
+          />
+        </div>
+
+        <div className="field">
+          <label className="field__label" htmlFor={fieldId('zoneCode')}>
+            State*
+          </label>
+          <input
+            className="field__input"
+            autoComplete="address-level1"
+            defaultValue={address?.zoneCode ?? ''}
+            id={fieldId('zoneCode')}
+            name="zoneCode"
+            required
+            type="text"
+          />
+        </div>
+
+        <div className="field">
+          <label className="field__label" htmlFor={fieldId('zip')}>
+            PIN code*
+          </label>
+          <input
+            className="field__input"
+            autoComplete="postal-code"
+            defaultValue={address?.zip ?? ''}
+            id={fieldId('zip')}
+            name="zip"
+            required
+            type="text"
+            inputMode="numeric"
+          />
+        </div>
+
+        <div className="field">
+          <label className="field__label" htmlFor={fieldId('territoryCode')}>
+            Country code*
+          </label>
+          <input
+            className="field__input"
+            autoComplete="country"
+            defaultValue={address?.territoryCode ?? 'IN'}
+            id={fieldId('territoryCode')}
+            name="territoryCode"
+            required
+            type="text"
+            maxLength={2}
+          />
+        </div>
+
+        <div className="field">
+          <label className="field__label" htmlFor={fieldId('phoneNumber')}>
+            Phone
+          </label>
+          <input
+            className="field__input"
+            autoComplete="tel"
+            defaultValue={address?.phoneNumber ?? ''}
+            id={fieldId('phoneNumber')}
+            name="phoneNumber"
+            placeholder="+919843000000"
+            pattern="^\+?[1-9]\d{3,14}$"
+            type="tel"
+          />
+        </div>
+      </div>
+
+      <label className="checkbox-row" htmlFor={fieldId('defaultAddress')}>
+        <input
+          defaultChecked={isDefaultAddress}
+          id={fieldId('defaultAddress')}
+          name="defaultAddress"
+          type="checkbox"
+        />
+        Set as default address
+      </label>
+
+      {error ? (
+        <p className="field__error" role="alert">
+          {error}
+        </p>
+      ) : null}
+
+      {children({
+        stateForMethod: (method) => (formMethod === method ? state : 'idle'),
+      })}
     </Form>
   );
 }

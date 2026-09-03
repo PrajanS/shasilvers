@@ -4,6 +4,15 @@ export const CUSTOMER_FRAGMENT = `#graphql
     id
     firstName
     lastName
+    # Shopify owns the sign-in identity. Both are read-only on the profile
+    # screen — editing either here would desynchronise the login — but the
+    # account header and the checkout prefill both need to show them.
+    emailAddress {
+      emailAddress
+    }
+    phoneNumber {
+      phoneNumber
+    }
     defaultAddress {
       ...Address
     }

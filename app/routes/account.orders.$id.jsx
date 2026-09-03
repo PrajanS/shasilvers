@@ -1,4 +1,4 @@
-import {redirect, useLoaderData} from 'react-router';
+import {Link, redirect, useLoaderData} from 'react-router';
 import {Money, Image} from '@shopify/hydrogen';
 import {CUSTOMER_ORDER_QUERY} from '~/graphql/customer-account/CustomerOrderQuery';
 
@@ -6,7 +6,7 @@ import {CUSTOMER_ORDER_QUERY} from '~/graphql/customer-account/CustomerOrderQuer
  * @type {Route.MetaFunction}
  */
 export const meta = ({data}) => {
-  return [{title: `Order ${data?.order?.name}`}];
+  return [{title: `Order ${data?.order?.name} — Sha Silvers`}];
 };
 
 /**
@@ -18,7 +18,23 @@ export async function loader({params, context}) {
     return redirect('/account/orders');
   }
 
-  const orderId = atob(params.id);
+  // The id arrives base64-encoded in the path. `atob` throws on malformed
+  // input, which surfaced as a 500 rather than a 404 for anyone who edited the
+  // URL, and the decoded value is only useful if it is actually an order gid.
+  let orderId;
+  try {
+    orderId = atob(params.id);
+  } catch {
+    throw new Response('Order not found', {status: 404});
+  }
+
+  if (!/^gid:\/\/shopify\/Order\/\d+/.test(orderId)) {
+    throw new Response('Order not found', {status: 404});
+  }
+
+  // Reading someone else's order is already prevented by the Customer Account
+  // API, which scopes every query to the signed-in customer's token — a valid
+  // id belonging to another customer simply returns nothing.
   const {data, errors} = await customerAccount.query(CUSTOMER_ORDER_QUERY, {
     variables: {
       orderId,
@@ -27,7 +43,7 @@ export async function loader({params, context}) {
   });
 
   if (errors?.length || !data?.order) {
-    throw new Error('Order not found');
+    throw new Response('Order not found', {status: 404});
   }
 
   const {order} = data;
@@ -72,135 +88,164 @@ export default function OrderRoute() {
     discountPercentage,
     fulfillmentStatus,
   } = useLoaderData();
+  const hasDiscount = Boolean(
+    (discountValue && discountValue.amount) || discountPercentage,
+  );
+
   return (
-    <div className="account-order">
-      <h2>Order {order.name}</h2>
-      <p>Placed on {new Date(order.processedAt).toDateString()}</p>
-      {order.confirmationNumber && (
-        <p>Confirmation: {order.confirmationNumber}</p>
-      )}
-      <br />
-      <div>
-        <table>
-          <thead>
-            <tr>
-              <th scope="col">Product</th>
-              <th scope="col">Price</th>
-              <th scope="col">Quantity</th>
-              <th scope="col">Total</th>
-            </tr>
-          </thead>
-          <tbody>
-            {lineItems.map((lineItem, lineItemIndex) => (
-              // eslint-disable-next-line react/no-array-index-key
-              <OrderLineRow key={lineItemIndex} lineItem={lineItem} />
-            ))}
-          </tbody>
-          <tfoot>
-            {((discountValue && discountValue.amount) ||
-              discountPercentage) && (
+    <section className="account-panel account-order">
+      <header className="account-panel__head">
+        <Link className="account-order__back" to="/account/orders">
+          ← All orders
+        </Link>
+        <h2 className="t-display-s">Order {order.name}</h2>
+        <p className="t-meta">
+          Placed{' '}
+          {new Date(order.processedAt).toLocaleDateString('en-IN', {
+            day: 'numeric',
+            month: 'long',
+            year: 'numeric',
+          })}
+          {order.confirmationNumber
+            ? ` · confirmation ${order.confirmationNumber}`
+            : ''}
+        </p>
+      </header>
+
+      <div className="order-detail">
+        <div className="order-detail__lines">
+          <table className="order-table">
+            <thead>
+              <tr>
+                <th scope="col">Article</th>
+                <th scope="col">Price</th>
+                <th scope="col">Qty</th>
+                <th scope="col">Total</th>
+              </tr>
+            </thead>
+            <tbody>
+              {lineItems.map((lineItem, lineItemIndex) => (
+                // eslint-disable-next-line react/no-array-index-key
+                <OrderLineRow key={lineItemIndex} lineItem={lineItem} />
+              ))}
+            </tbody>
+            <tfoot>
+              {hasDiscount ? (
+                <tr>
+                  <th scope="row" colSpan={3}>
+                    Discount
+                  </th>
+                  <td>
+                    {discountPercentage ? (
+                      <span>-{discountPercentage}%</span>
+                    ) : (
+                      discountValue && <Money data={discountValue} />
+                    )}
+                  </td>
+                </tr>
+              ) : null}
               <tr>
                 <th scope="row" colSpan={3}>
-                  <p>Discounts</p>
-                </th>
-                <th scope="row">
-                  <p>Discounts</p>
+                  Subtotal
                 </th>
                 <td>
-                  {discountPercentage ? (
-                    <span>-{discountPercentage}% OFF</span>
-                  ) : (
-                    discountValue && <Money data={discountValue} />
-                  )}
+                  <Money data={order.subtotal} />
                 </td>
               </tr>
-            )}
-            <tr>
-              <th scope="row" colSpan={3}>
-                <p>Subtotal</p>
-              </th>
-              <th scope="row">
-                <p>Subtotal</p>
-              </th>
-              <td>
-                <Money data={order.subtotal} />
-              </td>
-            </tr>
-            <tr>
-              <th scope="row" colSpan={3}>
-                Tax
-              </th>
-              <th scope="row">
-                <p>Tax</p>
-              </th>
-              <td>
-                <Money data={order.totalTax} />
-              </td>
-            </tr>
-            <tr>
-              <th scope="row" colSpan={3}>
-                Total
-              </th>
-              <th scope="row">
-                <p>Total</p>
-              </th>
-              <td>
-                <Money data={order.totalPrice} />
-              </td>
-            </tr>
-          </tfoot>
-        </table>
-        <div>
-          <h3>Shipping Address</h3>
-          {order?.shippingAddress ? (
-            <address>
-              <p>{order.shippingAddress.name}</p>
-              {order.shippingAddress.formatted ? (
-                <p>{order.shippingAddress.formatted}</p>
-              ) : (
-                ''
-              )}
-              {order.shippingAddress.formattedArea ? (
-                <p>{order.shippingAddress.formattedArea}</p>
-              ) : (
-                ''
-              )}
-            </address>
-          ) : (
-            <p>No shipping address defined</p>
-          )}
-          <h3>Status</h3>
-          <div>
-            <p>{fulfillmentStatus}</p>
-          </div>
+              <tr>
+                <th scope="row" colSpan={3}>
+                  Tax
+                </th>
+                <td>
+                  <Money data={order.totalTax} />
+                </td>
+              </tr>
+              <tr className="order-table__total">
+                <th scope="row" colSpan={3}>
+                  Total
+                </th>
+                <td>
+                  <Money data={order.totalPrice} />
+                </td>
+              </tr>
+            </tfoot>
+          </table>
         </div>
+
+        <aside className="order-detail__side">
+          <div className="order-detail__block">
+            <h3 className="t-label">Delivery address</h3>
+            {order?.shippingAddress ? (
+              <address className="t-body">
+                {order.shippingAddress.name}
+                {order.shippingAddress.formatted ? (
+                  <>
+                    <br />
+                    {order.shippingAddress.formatted}
+                  </>
+                ) : null}
+                {order.shippingAddress.formattedArea ? (
+                  <>
+                    <br />
+                    {order.shippingAddress.formattedArea}
+                  </>
+                ) : null}
+              </address>
+            ) : (
+              <p className="t-meta">No delivery address on this order.</p>
+            )}
+          </div>
+
+          <div className="order-detail__block">
+            <h3 className="t-label">Status</h3>
+            <p className="order-row__badge">{fulfillmentStatus}</p>
+          </div>
+
+          <a
+            className="btn btn--outline"
+            target="_blank"
+            href={order.statusPageUrl}
+            rel="noreferrer"
+          >
+            Track this order
+          </a>
+        </aside>
       </div>
-      <br />
-      <p>
-        <a target="_blank" href={order.statusPageUrl} rel="noreferrer">
-          View Order Status →
-        </a>
-      </p>
-    </div>
+    </section>
   );
 }
 
 /**
+ * One line of the order.
+ *
+ * The last column is the line total — price × quantity — not the discount the
+ * skeleton put there, which made a discounted line read as though it cost the
+ * discount.
+ *
  * @param {{lineItem: OrderLineItemFullFragment}}
  */
 function OrderLineRow({lineItem}) {
+  const unit = Number(lineItem.price?.amount);
+  const lineTotal = Number.isFinite(unit)
+    ? {
+        amount: String(unit * (lineItem.quantity ?? 1)),
+        currencyCode: lineItem.price.currencyCode,
+      }
+    : null;
+
   return (
-    <tr key={lineItem.id}>
+    <tr>
       <td>
-        <div>
-          {lineItem?.image && (
-            <div>
-              <Image data={lineItem.image} width={96} height={96} />
-            </div>
-          )}
+        <div className="order-table__article">
+          {lineItem?.image ? (
+            <Image data={lineItem.image} width={64} height={64} />
+          ) : null}
           <div>
-            <p>{lineItem.title}</p>
-            <small>{lineItem.variantTitle}</small>
+            <p className="order-table__title">{lineItem.title}</p>
+            {lineItem.variantTitle &&
+            lineItem.variantTitle !== 'Default Title' ? (
+              <p className="t-meta">{lineItem.variantTitle}</p>
+            ) : null}
           </div>
         </div>
       </td>
@@ -208,9 +253,7 @@ function OrderLineRow({lineItem}) {
         <Money data={lineItem.price} />
       </td>
       <td>{lineItem.quantity}</td>
-      <td>
-        <Money data={lineItem.totalDiscount} />
-      </td>
+      <td>{lineTotal ? <Money data={lineTotal} /> : '—'}</td>
     </tr>
   );
 }

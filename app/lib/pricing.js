@@ -23,6 +23,7 @@
  */
 
 import {normaliseMetal, metalLabel, rateFor} from '~/lib/metals';
+import {formatAmount, formatGrams} from '~/lib/money';
 
 /**
  * Read a product metafield fetched via `metafields(identifiers: [...])`.
@@ -214,6 +215,82 @@ export function getCartLineMetrics(line, rates) {
       line?.cost?.totalAmount?.currencyCode ??
       rates?.currencyCode ??
       'INR',
+  };
+}
+
+/**
+ * The pricing basis of a line, as cart attributes carried onto the order.
+ *
+ * The rate moves daily, so an order priced last Tuesday cannot be reconstructed
+ * from today's rate. Without this the order record has no memory of what it was
+ * priced at: the confirmation email cannot show the buyer how the figure was
+ * reached, and the refund policy's promise to refund "the amount you actually
+ * paid, not the metal rate on the day of return" has nothing to check against.
+ *
+ * Deliberately customer-visible (no `_` prefix), because showing the working is
+ * the shop's whole pitch — these appear at checkout, on the order in the admin,
+ * and are available to the notification templates.
+ *
+ * Returns an empty array when the article could not be priced by the formula.
+ * A line that fell back to Shopify's price has no rate to record, and inventing
+ * one would put a number on the order that was never used.
+ *
+ * @param {ReturnType<typeof getProductMetrics>} metrics
+ * @param {{now?: Date}} [options]
+ * @returns {Array<{key: string, value: string}>}
+ */
+export function priceAttributes(metrics, options = {}) {
+  const breakdown = metrics?.breakdown;
+  if (!breakdown) return [];
+
+  const {currencyCode} = breakdown;
+  const on = options.now ?? new Date();
+
+  const attributes = [
+    {key: 'Metal', value: metalLabel(breakdown.metalName) ?? 'Silver'},
+    {key: 'Nett weight', value: formatGrams(breakdown.weightGrams)},
+    {
+      key: 'Rate applied',
+      value: `${formatAmount(breakdown.ratePerGram, currencyCode, {
+        decimals: true,
+      })}/g`,
+    },
+  ];
+
+  // A making charge of zero is a fact worth recording; absent is not.
+  if (breakdown.making > 0) {
+    attributes.push({
+      key: 'Making charge',
+      value: formatAmount(breakdown.making, currencyCode),
+    });
+  }
+
+  attributes.push({
+    key: 'Priced on',
+    value: new Intl.DateTimeFormat('en-IN', {
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric',
+    }).format(on),
+  });
+
+  return attributes;
+}
+
+/**
+ * One cart line, with its pricing basis attached.
+ *
+ * Every add-to-cart control builds its lines through this, so quick-add, the
+ * product form and the sticky buy bar cannot disagree about what gets recorded.
+ *
+ * @param {{variant: any, metrics: any, quantity?: number}} args
+ */
+export function buildCartLine({variant, metrics, quantity = 1}) {
+  return {
+    merchandiseId: variant.id,
+    quantity,
+    selectedVariant: variant,
+    attributes: priceAttributes(metrics),
   };
 }
 
